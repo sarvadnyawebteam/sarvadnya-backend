@@ -1,8 +1,10 @@
 import { cookies } from 'next/headers';
 
 const TOKEN_COOKIE = '__admin_token';
-const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'admin';
+// CHANGE: 2026-08-27 — Admin-copy fork credentials. Only the admin deployment
+// uses this repo; the password is updated from the default admin/admin.
+const ADMIN_USERNAME = 'sarvadnya';
+const ADMIN_PASSWORD = 'admin@sarvadnya';
 const TOKEN_MAX_AGE = 86400;
 
 function base64Encode(str: string): string {
