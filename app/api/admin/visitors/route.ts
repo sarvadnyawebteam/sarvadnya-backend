@@ -46,6 +46,7 @@ export async function GET(request: Request) {
         { 'geo.isp': rx },
         { lastPath: rx },
         { ipMasked: rx },
+        { ip: rx },
       ];
     }
 
@@ -101,7 +102,11 @@ export async function GET(request: Request) {
       lastPath: v.lastPath,
       referrer: v.referrer || v.lastReferrer || '',
       lastReferrer: v.lastReferrer || '',
-      ip: v.ipMasked,
+      // CHANGE: 2026-08-29 — Return FULL IP (never masked) to the admin panel
+      // so the table/detail view show the complete address. Search also covers
+      // the raw ip field. This page has zero Zoho/Leadfeeder dependency — the
+      // data comes from our own /api/identify beacon into MongoDB.
+      ip: v.ip || v.ipMasked || '',
       geo: v.geo ?? null,
       device: v.device ?? null,
       secGpc: Boolean(v.secGpc),
