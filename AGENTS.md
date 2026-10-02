@@ -117,6 +117,35 @@ The site loads the client's Zoho SalesIQ widget script **for visitor tracking/an
 - **Never run `npm run dev` and `npm run build` at the same time.** Turbopack dev rewrites `.next` while the production build reads it → random `PageNotFoundError: Cannot find module for page: X` failures during "Collecting page data" (the failing page name differs each run).
 - This machine has 7.5 GB RAM (~1.3 GB free); `next.config.js` sets `experimental.cpus: 1` to keep build workers from starving. Builds take ~2–4 min.
 - If a build fails with that error: stop all node dev processes, delete `.next`, rebuild.
+- **Node must be 24.21.0** (`~/.local/node-v24.21.0/bin`, prepended in both `~/.bashrc` and `~/.profile`). `scripts/status-history-test.mjs` imports a `.ts` file directly and therefore needs Node ≥ 22.6's native type stripping. A shell that inherits an older `PATH` will fail it with a version message rather than a syntax error.
+- **The agent/tool shell may still resolve an older Node** than a login shell does, because the harness inherits the environment it was started with. Prefix Node commands with `export PATH="$HOME/.local/node-v24.21.0/bin:$PATH"`.
+
+### 10. Status-Change Audit Trail
+
+Every TSS-renewal status transition is recorded on the document itself as an embedded
+`statusHistory[]` array, appended by the **same atomic `updateOne`** that sets `status`.
+
+| File | Role |
+| :--- | :--- |
+| `lib/status-history.ts` | Pure module: the `pending/contacted/renewed/rejected` vocabulary, `statusChangeUpdate()`, `isValidStatus()`, `buildTimeline()`. No Mongo/React/`next/*` dependency **in types or at runtime**, so it is testable with plain `node` and reusable. |
+| `scripts/status-history-test.mjs` | `npm run test:status`. 22 zero-dependency assertions; also in `test:all`. |
+| `lib/mongodb-utils.ts` | `updateTssRenewalStatus(id, status, note?)` → `findOneAndUpdate(..., { returnDocument: 'after' })`, returning the updated doc (or `null` when nothing matched). |
+| `app/api/admin/tss-renewals/route.ts` | PATCH validates the status, accepts an optional note, returns post-write `{ status, history }`. |
+| `app/admin/tss-renewals/page.tsx` | Newest-first timeline in the detail modal, plus the no-op guard and error feedback described below. |
+
+**Decisions that are load-bearing — do not "simplify" them away:**
+
+- **Embedded array, not a separate collection.** A separate `status_events` collection would need **two** writes, and the Atlas cluster may be M0, which **does not support multi-document transactions**. Status and history could then disagree. One document, one atomic update.
+- **Events store `to` only; `from` is derived.** `buildTimeline()` walks the history newest-first and takes each entry's `from` from the next-older entry's `to`. Storing `from` would force a read-before-write to learn the current status, opening a race between two admins acting at once.
+- **No backfill.** Existing renewals predate the feature and their true history is unrecoverable. The oldest entry renders `from: null` → "created as", with the footnote "History began 2026-10-02". **Do not fabricate a synthetic prior state.**
+- **`actor` is always the constant `'admin'`.** `lib/admin-auth.ts` hardcodes a single identity and the session token carries no username, so attribution is structurally impossible today. The trail's value is the **timeline**, not who did it. Building a user model is a separate decision.
+- **The vocabulary lives in exactly one place.** The admin buttons and the PATCH validation both import `TSS_RENEWAL_STATUSES`, so the UI cannot offer a status the endpoint rejects.
+
+**Three live bugs fixed in the same path** (pre-existing, not introduced here): the PATCH endpoint accepted **any string** as a status; a missing or malformed id returned **200** instead of 404 (and `new ObjectId(id)` threw into the catch-all as a **500**); and `handleStatus` fired a request even when the status was unchanged, which under this feature would append a **duplicate audit event** on every re-click.
+
+**Not yet adopted anywhere.** Job applications, form submissions and problem reports have **no status vocabulary** — they only contain HTTP-status noise. Adopting the helper there requires the owner to define those statuses first. **Do not invent them.**
+
+**SP-1's Orders screen must reuse `statusChangeUpdate`** rather than writing its own status write, so orders get the audit trail from their first commit instead of needing a backfill migration.
 
 ## Developer Guidelines
 - **Surgical Updates:** Always prefer targeted `replace` over complete file rewrites for existing files.
@@ -129,4 +158,4 @@ The site loads the client's Zoho SalesIQ widget script **for visitor tracking/an
 - **Validate Before Completing:** Before marking any task as done, re-read the original user request, re-check every todo item, and verify each requirement is actually satisfied. Requirements get silently dropped during scope — always do a second pass against the original prompt to ensure nothing was missed.
 
 ---
-*Last Updated: 2026-08-21*
+*Last Updated: 2026-10-02*
