@@ -1,5 +1,9 @@
 import clientPromise from './mongodb';
 import { ObjectId } from 'mongodb';
+import type { Document, UpdateFilter } from 'mongodb';
+// CHANGE: 2026-10-02 — status-change audit trail (SP-2). Pure helper; supplies the
+// atomic $set + $push pair used by updateTssRenewalStatus.
+import { statusChangeUpdate } from './status-history';
 // Caching disabled
 
 export async function getDb() {
@@ -447,12 +451,30 @@ export async function getTssRenewals() {
   return serializeData(data);
 }
 
-export async function updateTssRenewalStatus(id: string, status: string) {
+export async function updateTssRenewalStatus(id: string, status: string, note?: string) {
+  // CHANGE: 2026-10-02 — status changes now append an audit event (SP-2).
+  // Delegates to statusChangeUpdate so the status write and the history push are
+  // ONE atomic update. findOneAndUpdate(returnDocument:'after') hands back the
+  // already-updated document, so the route can return the new status and history
+  // without a second query — the same pattern lib/visitors.ts and lib/email-queue.ts
+  // already use. A malformed id would otherwise make `new ObjectId(id)` throw into
+  // the route's catch-all and surface as a 500, so guard it the way this file's
+  // other lookup helpers already do. Returns null when no record matched (404).
+  if (!ObjectId.isValid(id)) {
+    return null;
+  }
   const col = await getCollection('tss_renewals');
-  return await col.updateOne(
+  const updated = await col.findOneAndUpdate(
     { _id: new ObjectId(id) },
-    { $set: { status, updatedAt: new Date() } }
+    // CHANGE: 2026-10-02 — cast at the driver boundary. Mongo's UpdateFilter
+    // constrains $push via NotAcceptedFields against a bare `Document`, which
+    // reduces the accepted value type to `never`, so StatusEvent is "not
+    // comparable" and a single `as` is rejected. The update shape itself is
+    // valid; only the generic driver constraint stands in the way.
+    statusChangeUpdate(status, { note }) as unknown as UpdateFilter<Document>,
+    { returnDocument: 'after' }
   );
+  return updated ? serializeData(updated) : null;
 }
 
 export async function deleteTssRenewal(id: string) {
