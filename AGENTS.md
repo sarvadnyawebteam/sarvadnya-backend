@@ -147,6 +147,19 @@ Every TSS-renewal status transition is recorded on the document itself as an emb
 
 **SP-1's Orders screen must reuse `statusChangeUpdate`** rather than writing its own status write, so orders get the audit trail from their first commit instead of needing a backfill migration.
 
+### 11. Prices Admin Manager (SP-1 cart build, 2026-10-02)
+
+The **DB-driven price catalog** that powers the public site's cart is edited here. The `prices` collection is shared (both repos point at the same Atlas URI); the admin writes, the public site reads.
+
+| File | Role |
+| :--- | :--- |
+| `lib/prices-catalog.mjs` (+`.d.mts`) / `lib/prices.ts` / `lib/prices-server.ts` | Hand-ported copies of the public repo's single source of truth (pure-ESM catalog + typed facade + Mongo read with identical-number fallback). **Port changes from the public repo by hand** — the forks have drifted (§0). |
+| `app/api/admin/prices/route.ts` | GET list / POST create / POST `action:'bootstrap'` (idempotent seed, `$setOnInsert`) / PUT update / DELETE. **Slug rename cascades**: `$pullAll`+`$push` retargets every `pairsWith`/`addonSlugs`/`moduleSlugs` referrer on other docs, so renaming `tallyprime-silver` never leaves a dangling pointer; DELETE removes the renamed slug from every other doc's arrays. `validatePriceItem` emits ISO date strings vs the seed's Mongo Dates — `toPriceItem` normalises both. |
+| `app/admin/prices/page.tsx` | Rupee input ↔ paise wire, validation feedback, save/edit/delete. New row scaffolded from a 17-item fallback so a fresh DB is still fully manageable. |
+| `app/admin/AdminSidebar.tsx` | "Prices" entry added under the catalog group. |
+
+**Load-bearing rules:** prices are **paise on the wire** (`pricePaise`, `basePaise`, `payablePaise`) and rupees in the input; the public `/api/prices` serves what the site renders, and the site **never** trusts a client amount — the cart order recomputes totals server-side from this collection. If the DB returns no rows the site serves catalog numbers identical to the fallback, so admin edits can never blank a page. `npm run typecheck` stays 0 (the boundary casting for `$pullAll`/`$push` lives in `mongodb-utils.ts`).
+
 ## Developer Guidelines
 - **Surgical Updates:** Always prefer targeted `replace` over complete file rewrites for existing files.
 - **Accessibility:** Maintain high contrast ratios and ensure interactive elements have clear focus states.
