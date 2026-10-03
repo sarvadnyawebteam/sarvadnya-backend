@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
+import PaymentsTabs from './tabs';
 // CHANGE: 2026-10-03 — SP-3 payments: the order status vocabulary + timeline come
 // from the shared pure module, so the UI and the API can never disagree (the same
 // rule nested AGENTS §10 applies to TSS renewals).
@@ -285,6 +286,8 @@ export default function AdminPaymentsLedger() {
 
   return (
     <div className="relative">
+      <PaymentsTabs active="ledger" />
+
       <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#006569] mb-2">Payments</p>
