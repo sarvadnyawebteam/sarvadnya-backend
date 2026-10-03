@@ -4,6 +4,11 @@ import type { Document, UpdateFilter } from 'mongodb';
 // CHANGE: 2026-10-02 — status-change audit trail (SP-2). Pure helper; supplies the
 // atomic $set + $push pair used by updateTssRenewalStatus.
 import { statusChangeUpdate } from './status-history';
+// CHANGE: 2026-10-03 — SP-3 payments: order-status vocabulary + builder for the
+// orders collection (updateOrderStatus below). Extensionless like status-history:
+// this file only runs under tsc/Next, never direct Node type-stripping.
+import { orderStatusChangeUpdate } from './order-status';
+import type { OrderStatus } from './order-status';
 // Caching disabled
 
 export async function getDb() {
@@ -472,6 +477,28 @@ export async function updateTssRenewalStatus(id: string, status: string, note?: 
     // comparable" and a single `as` is rejected. The update shape itself is
     // valid; only the generic driver constraint stands in the way.
     statusChangeUpdate(status, { note }) as unknown as UpdateFilter<Document>,
+    { returnDocument: 'after' }
+  );
+  return updated ? serializeData(updated) : null;
+}
+
+// CHANGE: 2026-10-03 — SP-3 payments: status-update helper for the `orders`
+// collection (shared DB — the public repo writes it at checkout, this repo edits
+// status + note from the ledger). Mirrors updateTssRenewalStatus exactly: the
+// atomic $set + $push pair comes from orderStatusChangeUpdate (which reuses the
+// SP-2 builder per AGENTS.md §10), findOneAndUpdate(returnDocument:'after')
+// returns the fresh doc in one round-trip, the id is guarded so a malformed one
+// 404s instead of throwing a 500. `status` is narrowed by the route's
+// isValidOrderStatus guard before this is called. Actor stays the builder's
+// default 'admin' — the panel is the only writer.
+export async function updateOrderStatus(id: string, status: OrderStatus, note?: string) {
+  if (!ObjectId.isValid(id)) {
+    return null;
+  }
+  const col = await getCollection('orders');
+  const updated = await col.findOneAndUpdate(
+    { _id: new ObjectId(id) },
+    orderStatusChangeUpdate(status, { note }) as unknown as UpdateFilter<Document>,
     { returnDocument: 'after' }
   );
   return updated ? serializeData(updated) : null;
