@@ -2,6 +2,10 @@
 // Single source of truth for the admin status vocabulary and the audit event shape.
 // Deliberately free of Mongo/React/next/* dependencies, in types as well as at
 // runtime, so it is testable with plain `node` and reusable by SP-1's Orders screen.
+// CHANGE: 2026-10-03 — SP-3: `statusChangeUpdate` gains an optional `actor` so the
+// payments flow (public repo) can stamp system-driven hops (created/verified) with
+// 'system' while the admin panel keeps the default 'admin'. Existing TSS callers
+// pass nothing and are unchanged.
 
 /**
  * The only admin identity that exists — see lib/admin-auth.ts. The session token
@@ -17,7 +21,7 @@ export type TssRenewalStatus = (typeof TSS_RENEWAL_STATUSES)[number];
 export type StatusEvent = {
   to: string; // the status the record became
   at: Date; // when the change was applied
-  actor: string; // always STATUS_ACTOR
+  actor: string; // STATUS_ACTOR by default; flow callers may pass 'system'
   note?: string; // optional free text from the admin
 };
 
@@ -56,11 +60,13 @@ function sanitizeNote(note?: string): string | undefined {
  * derived by buildTimeline — which avoids a read-before-write and the race it
  * implies when two admins act at once.
  *
- * `at` is injectable so tests are deterministic.
+ * `at` is injectable so tests are deterministic. `actor` defaults to STATUS_ACTOR
+ * ('admin') — every existing caller relies on that; SP-3's payment-flow hops pass
+ * 'system' explicitly.
  */
-export function statusChangeUpdate(to: string, opts?: { note?: string; at?: Date }): StatusChangeUpdate {
+export function statusChangeUpdate(to: string, opts?: { note?: string; at?: Date; actor?: string }): StatusChangeUpdate {
   const at = opts?.at ?? new Date();
-  const event: StatusEvent = { to, at, actor: STATUS_ACTOR };
+  const event: StatusEvent = { to, at, actor: opts?.actor ?? STATUS_ACTOR };
   const note = sanitizeNote(opts?.note);
   if (note !== undefined) event.note = note;
 

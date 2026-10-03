@@ -38,6 +38,14 @@ const {
   buildTimeline,
 } = await import(pathToFileURL(SRC).href);
 
+// CHANGE: 2026-10-03 — SP-3: order-status vocabulary tests. The module reuses the
+// SP-2 builder, so it is exercised through the same imported source.
+const {
+  ORDER_STATUSES,
+  isValidOrderStatus,
+  orderStatusChangeUpdate,
+} = await import(pathToFileURL(path.join(__dirname, '..', 'lib', 'order-status.ts')).href);
+
 let passed = 0;
 let failed = 0;
 const test = (name, fn) => {
@@ -219,6 +227,79 @@ test('does not mutate the input array', () => {
     input.map((e) => e.to),
     before,
   );
+});
+
+console.log('\norder status vocabulary (SP-3)');
+
+test('accepts all four order statuses', () => {
+  for (const s of ['created', 'verified', 'refunded', 'fulfilled']) {
+    assert.equal(isValidOrderStatus(s), true, `${s} should be valid`);
+  }
+});
+
+test('rejects unknown and malformed order statuses', () => {
+  for (const s of ['CREATED', '', 'Verified', ' refunded', 'paid', 'fulfilled ']) {
+    assert.equal(isValidOrderStatus(s), false, `${JSON.stringify(s)} should be rejected`);
+  }
+});
+
+test('order vocabulary is exactly the four, in order', () => {
+  assert.deepEqual([...ORDER_STATUSES], ['created', 'verified', 'refunded', 'fulfilled']);
+});
+
+test('orderStatusChangeUpdate sets status + updatedAt from injected at', () => {
+  const u = orderStatusChangeUpdate('refunded', { at: AT });
+  assert.equal(u.$set.status, 'refunded');
+  assert.equal(u.$set.updatedAt.getTime(), AT.getTime());
+  assert.equal(u.$push.statusHistory.to, 'refunded');
+});
+
+test('order status events default to the admin actor', () => {
+  const e = orderStatusChangeUpdate('fulfilled', { at: AT }).$push.statusHistory;
+  assert.equal(e.actor, STATUS_ACTOR);
+  assert.equal(e.actor, 'admin');
+});
+
+test('order note is sanitised (control chars stripped, capped)', () => {
+  const note = `refunded\u0000\r\n${'x'.repeat(400)}`;
+  const e = orderStatusChangeUpdate('refunded', { at: AT, note }).$push.statusHistory;
+  assert.ok(!e.note.includes('\u0000'), 'no NUL');
+  assert.ok(!e.note.includes('\r'), 'no CR');
+  assert.ok(!e.note.includes('\n'), 'no LF');
+  assert.equal(e.note.length, 300);
+});
+
+test('order note key absent when not supplied', () => {
+  const e = orderStatusChangeUpdate('verified', { at: AT }).$push.statusHistory;
+  assert.equal('note' in e, false, 'note must not exist as undefined');
+});
+
+test('generalised statusChangeUpdate honours an explicit actor', () => {
+  const e = statusChangeUpdate('verified', { at: AT, actor: 'system' }).$push.statusHistory;
+  assert.equal(e.actor, 'system');
+});
+
+test('generalised statusChangeUpdate still defaults to admin when actor omitted', () => {
+  const e = statusChangeUpdate('contacted', { at: AT }).$push.statusHistory;
+  assert.equal(e.actor, 'admin');
+});
+
+test('buildTimeline derives from for order histories (oldest is null)', () => {
+  const t = buildTimeline([
+    { to: 'created', at: new Date('2026-10-01T09:00:00Z'), actor: 'system' },
+    { to: 'verified', at: new Date('2026-10-02T09:00:00Z'), actor: 'system' },
+    { to: 'fulfilled', at: new Date('2026-10-03T09:00:00Z'), actor: 'admin', note: 'Shipped' },
+  ]);
+  assert.deepEqual(
+    t.map((e) => e.to),
+    ['fulfilled', 'verified', 'created'],
+  );
+  assert.deepEqual(
+    t.map((e) => e.from),
+    ['verified', 'created', null],
+  );
+  assert.equal(t[0].note, 'Shipped');
+  assert.equal(t[0].actor, 'admin');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

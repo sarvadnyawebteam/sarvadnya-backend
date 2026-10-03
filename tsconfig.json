@@ -10,6 +10,11 @@
     "skipLibCheck": true,
     "strict": false,
     "noEmit": true,
+    // CHANGE: 2026-10-03 — SP-3: allow .ts-extension relative imports so Node's
+    // native type stripping (>= 22.6) can load lib/order-status.ts in
+    // scripts/status-history-test.mjs. Safe under noEmit + moduleResolution
+    // bundler; Next/Turbopack resolve .ts specifiers natively.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
