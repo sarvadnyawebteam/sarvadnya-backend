@@ -40,6 +40,8 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
     { label: 'Email Config', href: '/admin/email-config', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
     // CHANGE: 2026-10-02 — SP-1 cart build: admin price manager for the site-wide cart.
     { label: 'Prices', href: '/admin/prices', icon: 'M6 3h12M6 8h12M6 13l8.5 8M6 13h3a3 3 0 003-3H6m3 3c4 0 6-2.5 6-6' },
+    // CHANGE: 2026-10-03 — SP-3 payments: ledger + summary for the shared orders collection.
+    { label: 'Payments', href: '/admin/payments', icon: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z' },
     { label: 'Problem Reports', href: '/admin/problem-reports', icon: 'M12 9v2m0 4h.01M4.75 20h14.5a2.25 2.25 0 001.95-3.38L14.2 4.62a2.25 2.25 0 00-3.9 0L2.8 16.62A2.25 2.25 0 004.75 20z' },
     { label: 'TSS Renewals', href: '/admin/tss-renewals', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
     { label: 'Careers', href: '/admin/careers', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
