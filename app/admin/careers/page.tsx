@@ -88,6 +88,25 @@ export default function AdminCareers() {
     }
   };
 
+  // CHANGE: 2026-10-07 — Task 4: job visibility toggle. The shared `careers`
+  // docs carry `visible` (absent = visible); the PUBLIC site's /api/careers/list
+  // + /api/careers/visible filter `visible: { $ne: false }`, so hiding a job
+  // removes it from the public site immediately. Refetch after the PATCH.
+  const toggleVisibility = async (id: string, currentVisible: boolean | undefined) => {
+    if (!id) return;
+    const next = currentVisible === false;
+    try {
+      const res = await fetch(`/api/admin/careers/${id}/visibility`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible: next }),
+      });
+      if (res.ok) fetchJobs();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const openResume = (url: string) => {
     if (!url) {
       alert('Resume URL not found.');
@@ -232,7 +251,18 @@ export default function AdminCareers() {
                   <h3 className="font-bold text-[#0f172a]">{job.title}</h3>
                   <p className="text-xs text-slate-500">{job.department} • {job.location} • {job.type}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
+                  <button
+                    onClick={() => toggleVisibility((job as any)._id, (job as any).visible)}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors border ${
+                      (job as any).visible === false
+                        ? 'text-red-600 hover:bg-red-50 border-red-100'
+                        : 'text-[#006569] hover:bg-teal-50 border-teal-100'
+                    }`}
+                    title={(job as any).visible === false ? 'Hidden from the public site — click to show' : 'Visible on the public site — click to hide'}
+                  >
+                    {(job as any).visible === false ? 'Hidden' : 'Visible'}
+                  </button>
                   <button 
                     onClick={() => setEditingJob(job)}
                     className="px-3 py-1 text-xs font-bold text-[#006569] hover:bg-teal-50 rounded-lg transition-colors border border-teal-100"

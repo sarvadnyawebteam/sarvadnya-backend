@@ -14,12 +14,13 @@
     "test:sara": "node scripts/sara-test.mjs",
     "test:status": "node scripts/status-history-test.mjs",
     "test:guard": "node scripts/admin-guard-test.mjs",
-    "test:all": "node scripts/api-test.mjs && node scripts/sara-test.mjs && node scripts/status-history-test.mjs && node scripts/admin-guard-test.mjs",
+    "test:all": "node scripts/api-test.mjs && node scripts/sara-test.mjs && node scripts/status-history-test.mjs && node scripts/admin-guard-test.mjs && node scripts/accounts-admin-test.mjs",
     "test:email": "node scripts/email-test.mjs",
     "audit": "npm audit --audit-level=high",
     "audit:deps": "npm audit --json",
     "security:check": "node scripts/security-audit.mjs",
-    "security:audit": "node scripts/security-audit.mjs && npm audit --audit-level=high"
+    "security:audit": "node scripts/security-audit.mjs && npm audit --audit-level=high",
+    "test:accounts": "node scripts/accounts-admin-test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
