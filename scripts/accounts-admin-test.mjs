@@ -1,6 +1,14 @@
 // CHANGE: 2026-10-07 — Task 4 E2E: career candidate Accounts admin + job
 // visibility toggle, against a locally-spawned nested dev server.
 //
+// CHANGE: 2026-10-07 — owner follow-up: manual account creation (POST
+// /api/admin/careers/users) + the merge of Accounts INTO the Careers page.
+// The suite now also asserts: POST create -> 201 (passwordHash stored hashed,
+// never serialized), duplicate email -> 409, invalid email / short password ->
+// 400, a POST-created account is deletable via the existing DELETE, and the
+// standalone /admin/accounts page route is GONE (404 — the Accounts admin now
+// lives inside /admin/careers).
+//
 // Covers:
 //   1. middleware guard: bare /api/admin/careers/users -> 401, with x-admin-key -> 200
 //   2. CRUD cycle on a MARKED test doc (email __e2e_test__@example.com) —
@@ -205,6 +213,58 @@ async function waitForServer() {
       'session docs gone (delete cascades sessions)',
       (await db.collection('careers_sessions').countDocuments({ userId })) === 0
     );
+
+    // 6b. Manual create (owner follow-up — POST /api/admin/careers/users)
+    r = await api('/api/admin/careers/users', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ email: TEST_EMAIL, password: 'secret123', fullName: 'Created By Admin', phone: '98213 09060' }),
+    });
+    check('POST create -> 201', r.status === 201 && r.body?.email === TEST_EMAIL, `got ${r.status} ${JSON.stringify(r.body)}`);
+    check('POST create response never serializes passwordHash', !('passwordHash' in (r.body || {})));
+    const createdDoc = await usersCol.findOne({ email: TEST_EMAIL });
+    check(
+      'created doc persisted with hashed password + name/phone',
+      !!createdDoc?.passwordHash &&
+        createdDoc.passwordHash !== 'secret123' &&
+        createdDoc?.fullName === 'Created By Admin' &&
+        createdDoc?.phone === '98213 09060'
+    );
+
+    // 6c. Duplicate email -> 409 (unique-lite, like the public signup)
+    r = await api('/api/admin/careers/users', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ email: TEST_EMAIL, password: 'secret123' }),
+    });
+    check('POST duplicate email -> 409', r.status === 409, `got ${r.status} ${JSON.stringify(r.body)}`);
+
+    // 6d. Invalid email / short password -> 400
+    r = await api('/api/admin/careers/users', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ email: 'not-an-email', password: 'secret123' }),
+    });
+    check('POST invalid email -> 400', r.status === 400, `got ${r.status}`);
+    r = await api('/api/admin/careers/users', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ email: 'another__e2e__@example.com', password: '123' }),
+    });
+    check('POST short password -> 400', r.status === 400, `got ${r.status}`);
+
+    // 6e. POST-created account is deletable via the existing DELETE route
+    const createdId = String(createdDoc._id);
+    r = await api(`/api/admin/careers/users/${createdId}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-key': ADMIN_KEY },
+    });
+    check('DELETE on POST-created account -> 200', r.status === 200, `got ${r.status}`);
+
+    // 6f. Merge: the standalone /admin/accounts page route is gone (404) — the
+    // Accounts admin now lives INSIDE /admin/careers as a third tab.
+    r = await api('/admin/accounts');
+    check('standalone /admin/accounts page -> 404 (merged into /admin/careers)', r.status === 404, `got ${r.status}`);
 
     // 7. Visibility toggle
     const jobsCol = db.collection('careers');

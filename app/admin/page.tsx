@@ -24,6 +24,11 @@ type AdminStats = {
   faq: number;
   visitors: number;
   visitorsToday: number;
+  // CHANGE: 2026-10-07 — owner follow-up (dashboard KPIs): commerce + careers
+  // metrics added (see "Commerce & Careers" group below).
+  orders: number;
+  ordersToday: number;
+  accounts: number;
 };
 
 export default function AdminDashboard() {
@@ -78,6 +83,14 @@ export default function AdminDashboard() {
       ]
     },
     {
+      title: 'Commerce & Careers',
+      items: [
+        { label: 'Orders', desc: 'Checkout orders processed (test-mode gateway)', value: stats?.orders || 0, href: '/admin/payments', icon: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z', color: 'bg-teal-50 text-teal-600' },
+        { label: 'Orders Today', desc: 'Orders created since midnight', value: stats?.ordersToday || 0, href: '/admin/payments', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z', color: 'bg-cyan-50 text-cyan-600' },
+        { label: 'Candidate Accounts', desc: 'Career sign-ups + manually created', value: stats?.accounts || 0, href: '/admin/careers', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', color: 'bg-blue-50 text-blue-600' },
+      ]
+    },
+    {
       title: 'Trust & Partnerships',
       items: [
         { label: 'Customer Reviews', desc: 'Verified ratings and client testimonials', value: stats?.reviews || 0, href: '/admin/reviews', icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.518 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.54 1.118l-3.976-2.888a1 1 0 00-1.175 0l-3.976 2.888c-.784.57-1.838-.197-1.539-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z', color: 'bg-yellow-50 text-yellow-600' },
@@ -110,7 +123,7 @@ export default function AdminDashboard() {
           <div className="h-6 w-px bg-slate-100"></div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Version</span>
-            <span className="text-sm font-bold text-[#006569]">{health?.version || 'v1.1.389'}</span>
+            <span className="text-sm font-bold text-[#006569]">{health?.version || 'v1.1.390'}</span>
           </div>
           <button 
             onClick={fetchData}

@@ -3,6 +3,11 @@ import { getCollection } from '@/lib/mongodb-utils';
 
 export async function GET() {
   try {
+    // CHANGE: 2026-10-07 — owner follow-up (dashboard KPIs): orders (commerce)
+    // and career candidate accounts are now surfaced on /api/admin/stats. The
+    // `orders` collection is written by the PUBLIC repo's checkout; the
+    // `careers_users` collection by the public /careers signup + this panel's
+    // manual create.
     const stats: any = {
       submissions: 0,
       problemReports: 0,
@@ -15,7 +20,10 @@ export async function GET() {
       partners: 0,
       faq: 0,
       visitors: 0,
-      visitorsToday: 0
+      visitorsToday: 0,
+      orders: 0,
+      ordersToday: 0,
+      accounts: 0
     };
 
     // Submissions count
@@ -67,6 +75,15 @@ export async function GET() {
     if (faqDoc && Array.isArray(faqDoc.content)) {
       stats.faq = faqDoc.content.length;
     }
+
+    // Orders count (SP-3 orders ledger — written by the public checkout routes)
+    const ordersCol = await getCollection('orders');
+    stats.orders = await ordersCol.countDocuments();
+    stats.ordersToday = await ordersCol.countDocuments({ createdAt: { $gte: startOfToday } });
+
+    // Career candidate accounts (public /careers signup + this panel's manual create)
+    const usersCol = await getCollection('careers_users');
+    stats.accounts = await usersCol.countDocuments();
 
     return NextResponse.json(stats);
   } catch (error) {

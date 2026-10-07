@@ -40,6 +40,27 @@ type OrderLedgerItem = {
   testMode?: boolean;
   createdAt: string;
   updatedAt?: string;
+  // CHANGE: 2026-10-07 — owner follow-up: request context stored by the public
+  // repo's /api/cart/order and rendered in the detail modal (see Request block).
+  ip?: string;
+  requestMeta?: {
+    ip?: string;
+    userAgent?: string | null;
+    referer?: string | null;
+    language?: string | null;
+    platform?: string | null;
+    geo?: {
+      country?: string;
+      countryCode?: string;
+      region?: string;
+      city?: string;
+      isp?: string;
+      proxy?: boolean;
+      isVpn?: boolean;
+      isTor?: boolean;
+    } | null;
+    geoAt?: string | null;
+  };
 };
 
 type Pagination = {
@@ -668,6 +689,76 @@ export default function AdminPaymentsLedger() {
                   </div>
                 );
               })()}
+
+              {/* Request & Location — CHANGE: 2026-10-07 — owner follow-up: the
+                  public repo's /api/cart/order now stores the buyer's request
+                  context with the transaction (ip + headers captured inline,
+                  geo enriched in the background via Next `after()`), and the
+                  earlier SP-3 `{ ip: 0 }` projection was dropped so this modal
+                  can render it. Table columns stay clean — request data shows
+                  ONLY here. */}
+              <div>
+                <p className="mb-2 text-[9px] font-black uppercase tracking-widest text-slate-400">Request &amp; Location</p>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">IP Address</p>
+                      <p className="mt-0.5 truncate font-mono text-xs font-semibold text-slate-700">
+                        {selected.requestMeta?.ip || selected.ip || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Platform</p>
+                      <p className="mt-0.5 truncate text-xs font-semibold text-slate-700">
+                        {selected.requestMeta?.platform || '—'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2 text-xs">
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">User Agent</p>
+                      <p className="mt-0.5 break-words font-medium text-slate-600">
+                        {selected.requestMeta?.userAgent || 'Not captured'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Referer</p>
+                      <p className="mt-0.5 break-words font-medium text-slate-600">
+                        {selected.requestMeta?.referer || 'None'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Accept-Language</p>
+                      <p className="mt-0.5 break-words font-medium text-slate-600">
+                        {selected.requestMeta?.language || 'None'}
+                      </p>
+                    </div>
+                  </div>
+                  {(selected.requestMeta?.geo && Object.keys(selected.requestMeta.geo).length > 0) && (
+                    <div className="mt-3 rounded-lg border border-[#E5F4F4] bg-teal-50/40 p-3">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Location</p>
+                      <p className="mt-0.5 text-sm font-bold text-slate-700">
+                        {[
+                          selected.requestMeta.geo.city,
+                          selected.requestMeta.geo.region,
+                          selected.requestMeta.geo.country,
+                        ]
+                          .filter(Boolean)
+                          .join(', ') || 'Unknown'}
+                        {selected.requestMeta.geo.countryCode ? ` (${selected.requestMeta.geo.countryCode})` : ''}
+                      </p>
+                      {selected.requestMeta.geo.isp && (
+                        <p className="text-[11px] font-medium text-slate-500">ISP: {selected.requestMeta.geo.isp}</p>
+                      )}
+                      {selected.requestMeta.geoAt && (
+                        <p className="text-[10px] font-medium text-slate-400">
+                          Looked up {new Date(selected.requestMeta.geoAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-100 bg-slate-50/70 p-5 sm:p-6">

@@ -2,11 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-// CHANGE: 2026-10-07 — Task 4: career candidate Accounts admin. Searchable
-// table over /api/admin/careers/users (middleware-guarded), row → inline
-// edit panel (fullName / phone / email), delete requires typing DELETE (typed-
-// confirm), resume opens in a new tab. Mirrors the careers/payments page
-// styling conventions (bg-white cards, #006569 accents, uppercase micro-labels).
+// CHANGE: 2026-10-07 — owner follow-up: the career candidate Accounts admin now
+// lives INSIDE the Careers page as a third tab (Job Listings | Applications |
+// Accounts), and gains a manual "Create Account" option. The old standalone
+// /admin/accounts page was deleted (the sidebar keeps ONE Careers entry).
+//
+// The table/search/edit/delete behaviour is unchanged from that page; the new
+// part is the header "Create Account" button -> inline create panel that POSTs
+// to /api/admin/careers/users (the POST endpoint added to that route the same
+// day). Created accounts are identical to self-signups on the public /careers
+// page (same email validation, password floor 6, unique-lite email -> 409).
 
 type Account = {
   _id: string;
@@ -22,10 +27,14 @@ type Account = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-export default function AdminAccounts() {
+const EMPTY_CREATE = { fullName: '', phone: '', email: '', password: '' };
+
+export default function AccountsTab() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_CREATE);
   const [editing, setEditing] = useState<Account | null>(null);
   const [form, setForm] = useState<{ fullName: string; phone: string; email: string }>({
     fullName: '',
@@ -56,6 +65,42 @@ export default function AdminAccounts() {
     const t = setTimeout(fetchAccounts, q ? 350 : 0);
     return () => clearTimeout(t);
   }, [q, fetchAccounts]);
+
+  const openCreate = () => {
+    setCreating(true);
+    setCreateForm(EMPTY_CREATE);
+    setError('');
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!EMAIL_RE.test(createForm.email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (createForm.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/careers/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create account');
+      setCreating(false);
+      setCreateForm(EMPTY_CREATE);
+      fetchAccounts();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const openEdit = (a: Account) => {
     setEditing(a);
@@ -122,18 +167,8 @@ export default function AdminAccounts() {
 
   return (
     <div>
-      <header className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-black text-[#0f172a]">Accounts</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Career candidate sign-ups — view, edit or remove accounts. Deleting an account also revokes
-            its sign-in sessions and best-effort removes its stored resume.
-          </p>
-        </div>
-      </header>
-
-      {/* Search */}
-      <div className="mb-6">
+      {/* Toolbar: search + create */}
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="text"
           placeholder="Search by name, email or phone…"
@@ -141,11 +176,89 @@ export default function AdminAccounts() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        {!creating && (
+          <button
+            onClick={openCreate}
+            className="shrink-0 bg-[#006569] text-white px-6 py-3 rounded-2xl font-bold hover:shadow-lg transition-all"
+          >
+            + Create Account
+          </button>
+        )}
       </div>
 
       {error && (
         <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-100 text-red-600 text-sm font-bold">
           {error}
+        </div>
+      )}
+
+      {/* Create panel */}
+      {creating && (
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm mb-8">
+          <h2 className="text-xl font-bold text-[#0f172a] mb-1">Create Candidate Account</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            The candidate signs in on /careers with these credentials (email is the login identity).
+          </p>
+          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Full Name</label>
+              <input
+                type="text"
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#006569]"
+                value={createForm.fullName}
+                onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
+                placeholder="Full name"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Phone</label>
+              <input
+                type="text"
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#006569]"
+                value={createForm.phone}
+                onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                placeholder="Mobile / WhatsApp"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Email (login identity)</label>
+              <input
+                type="email"
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#006569]"
+                value={createForm.email}
+                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                placeholder="name@example.com"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Password</label>
+              <input
+                type="password"
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#006569]"
+                value={createForm.password}
+                onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                placeholder="At least 6 characters"
+                required
+              />
+            </div>
+            <div className="md:col-span-2 flex gap-4">
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-[#006569] text-white px-8 py-3 rounded-2xl font-bold hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {saving ? 'Creating…' : 'Create Account'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreating(false)}
+                className="bg-slate-100 text-slate-600 px-8 py-3 rounded-2xl font-bold"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -273,7 +386,7 @@ export default function AdminAccounts() {
               ) : (
                 <tr>
                   <td colSpan={6} className="text-center py-20 text-slate-400">
-                    {q ? 'No accounts match that search.' : 'No candidate accounts yet.'}
+                    {q ? 'No accounts match that search.' : 'No candidate accounts yet. Use "Create Account" to add one.'}
                   </td>
                 </tr>
               )}

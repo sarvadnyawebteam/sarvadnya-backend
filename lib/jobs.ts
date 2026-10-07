@@ -14,73 +14,154 @@ export type Job = {
   benefits: string[];
 };
 
+// CHANGE: 2026-09-17 — Openings replaced with Business Development Executive, Junior Marketing
+// Executive and CRE per owner; postedAt refreshed to 2026-09-17, location/names unchanged.
+// CHANGE: 2026-10-07 — + Digital Marketing Executive + Social Media Executive per owner
+// ("add few position of digital marketing, social media executive"); postedAt 2026-10-07.
 export const jobs: Job[] = [
   {
-    id: "tally-support-exec",
-    title: "Tally Support Executive",
-    department: "Customer Success",
-    location: "Belapur, Navi Mumbai",
-    type: "Full-time",
-    shortDescription: "Provide technical support and training for TallyPrime to our growing client base.",
-    fullDescription: "As a Tally Support Executive, you will be the first point of contact for our clients. You will resolve technical issues, provide product demonstrations, and ensure clients are maximizing the value of TallyPrime in their business operations.",
-    postedAt: "2026-05-10T09:00:00Z",
-    requirements: [
-      "In-depth knowledge of TallyPrime and Tally.ERP 9",
-      "Basic understanding of accounting principles and GST",
-      "Excellent communication and problem-solving skills",
-      "Ability to provide on-site and remote support",
-      "Previous experience in Tally support is a plus"
-    ],
-    benefits: [
-      "Competitive salary and performance bonuses",
-      "Continuous learning and certification opportunities",
-      "Exposure to diverse industry verticals",
-      "Friendly and collaborative work environment"
-    ]
-  },
-  {
-    id: "it-sales-manager",
-    title: "IT Sales Manager",
+    id: "business-development-executive",
+    title: "Business Development Executive",
     department: "Sales",
     location: "Belapur, Navi Mumbai",
     type: "Full-time",
-    shortDescription: "Lead our sales efforts for Cloud solutions and Tally customization modules.",
-    fullDescription: "We are looking for a dynamic Sales Manager to drive the adoption of our AWS Cloud services and specialized Tally modules. You will identify new business opportunities, build relationships with SMEs, and close deals for our premium IT services.",
-    postedAt: "2026-05-12T14:30:00Z",
+    shortDescription: "Drive growth by building relationships with SMEs and championing Tally, Cloud and AMC solutions.",
+    fullDescription: "We are looking for a driven Business Development Executive to expand our footprint across SMEs. You will prospect, present and close partnerships for TallyPrime, AWS Cloud, managed support and business automation, working closely with the sales team to hit and exceed targets.",
+    aboutRole:
+      "As a Business Development Executive, you are the growth engine for Sarvadnya. You will reach out to prospective businesses, understand their accounting and IT needs, demonstrate how TallyPrime, Cloud and automation solve them, and win long-term partners — on-site and over calls.",
+    lookingFor:
+      "The ideal candidate brings drive, structured follow-up and a consultative ear:\n- 0-3 years in B2B sales / business development (IT software or services preferred)\n- Strong spoken and written English; comfortable with cold calling and client demos\n- Ability to learn Tally/ERP and Cloud concepts quickly\n- Target-oriented with a hunger to build a client pipeline\n- Own two-wheeler / willingness to travel locally is a plus",
+    whyJoinUs:
+      "Why people grow here quickly:\n- Best-in-class incentive and commission structure\n- Direct exposure to real SME decision-makers\n- Full product training on TallyPrime, Cloud and automation\n- Fast-track growth into team-lead roles",
+    postedAt: "2026-09-17T09:00:00Z",
     requirements: [
-      "2+ years of experience in IT software/services sales",
-      "Proven track record of meeting and exceeding sales targets",
-      "Strong understanding of Cloud computing and ERP solutions",
-      "Exceptional negotiation and presentation skills",
-      "Willingness to travel for client meetings"
+      "0-3 years of experience in B2B sales or business development",
+      "Excellent communication and follow-up discipline",
+      "Willingness to learn Tally, Cloud and ERP concepts",
+      "Self-starter able to prospect independently",
+      "Local travel availability preferred"
     ],
     benefits: [
-      "Attractive commission structure",
-      "Remote work flexibility",
-      "Annual sales retreats",
-      "Health insurance and travel allowances"
+      "Competitive salary + performance incentives",
+      "On-the-job product and sales training",
+      "Exposure to diverse industry verticals",
+      "Growth into senior sales / team-lead roles"
     ]
   },
   {
-    id: "tally-developer-intern",
-    title: "Tally Developer Intern",
-    department: "Development",
+    id: "junior-marketing-executive",
+    title: "Junior Marketing Executive",
+    department: "Marketing",
     location: "Belapur, Navi Mumbai",
-    type: "Internship",
-    shortDescription: "Learn TDL (Tally Definition Language) and help build custom Tally modules.",
-    fullDescription: "Kickstart your career in ERP development. As an intern, you will assist our senior developers in creating specialized TDL customizations. You will learn how to extend Tally's functionality to meet unique business requirements.",
-    postedAt: "2026-05-14T08:00:00Z",
+    type: "Full-time",
+    shortDescription: "Own digital campaigns, content and lead generation for Tally, Cloud and automation services.",
+    fullDescription: "Join our marketing team to plan and execute campaigns that connect SMEs with Tally and Cloud solutions. You will run SEO, social, WhatsApp and Google lead-generation funnels, create content and measure what converts.",
+    aboutRole:
+      "This role owns the day-to-day execution of marketing: campaign calendars, content creation, ad and SEO coordination, social media, email/WhatsApp nurturing and reporting. You will turn brand awareness into qualified leads for the sales team.",
+    lookingFor:
+      "Where you win with us:\n- 0-2 years in marketing (internship counts) — B2B/tech marketing is a plus\n- Hands-on with Canva, Meta/Google Ads basics, and social scheduling tools\n- Analytical bent: comfortable with spreadsheets and simple performance reports\n- Creative eye for short-form content and campaign hooks\n- Basic understanding of SEO keywords is a bonus",
+    whyJoinUs:
+      "Why this role stands out:\n- Own real campaigns and measurable leads from day one\n- Learn paid ads, SEO and B2B funnels end-to-end\n- Supportive team with clear growth into senior marketing roles\n- Flexible, modern work culture",
+    postedAt: "2026-09-17T09:00:00Z",
     requirements: [
-      "Basic knowledge of any programming language (C, Java, Python)",
-      "Strong logical and analytical skills",
-      "Eagerness to learn TDL and ERP architecture",
-      "Final year students or recent graduates in CS/IT"
+      "0-2 years of marketing experience (internships included)",
+      "Comfort with Canva, social scheduling and basic ad platforms",
+      "Strong written communication and content instinct",
+      "Data-driven mindset for campaign reporting",
+      "Basic SEO understanding is a plus"
     ],
     benefits: [
-      "Hands-on training by industry experts",
-      "Stipend during the internship period",
-      "Certificate of completion",
-      "Opportunity for full-time conversion"
+      "Hands-on training across SEO, ads and content",
+      "Real campaign ownership and lead-gen exposure",
+      "Flexible work arrangements",
+      "Clear path to senior marketing roles"
+    ]
+  },
+  {
+    id: "cre",
+    title: "CRE — Customer Relations Executive",
+    department: "Customer Success",
+    location: "Belapur, Navi Mumbai",
+    type: "Full-time",
+    shortDescription: "Manage client relationships, renewals and retention for our Tally and Cloud customer base.",
+    fullDescription: "You will be the trusted point of contact for our customers. This role balances account management with light technical hand-holding — coordinating support, renewing AMC/TSS plans and growing client satisfaction across the portfolio.",
+    aboutRole:
+      "As a Customer Relations Executive, you keep customers happy and loyal. You own the relationship layer: onboarding, periodic check-ins, renewal cycles, cross-sell of relevant Tally/Cloud/AMC plans and escalating technical needs to our support team with complete follow-through.",
+    lookingFor:
+      "What makes a strong CRE here:\n- 0-3 years in customer success, account management or client support\n- Warm, professional communication — you build trust fast\n- Good grasp of Tally basics or ability to learn them quickly\n- Organised follow-through: every query logged, tracked and closed\n- CRM fluency (Zoho/any) is a plus",
+    whyJoinUs:
+      "Why people love this role:\n- Own a real portfolio of SME relationships\n- Combine account management with Tally/Cloud product depth\n- Performance-linked rewards on retention and renewals\n- Clear path to senior customer-success roles",
+    postedAt: "2026-09-17T09:00:00Z",
+    requirements: [
+      "0-3 years in customer success / account management / client support",
+      "Excellent communication and relationship skills",
+      "Willingness to learn Tally and Cloud product details",
+      "Strong follow-through and documentation discipline",
+      "Basic CRM experience is a plus"
+    ],
+    benefits: [
+      "Salary + retention/renewal performance rewards",
+      "Training on TallyPrime, TSS and Cloud products",
+      "Direct exposure to real client decision-makers",
+      "Growth into senior customer-success roles"
+    ]
+  },
+  {
+    id: "digital-marketing-executive",
+    title: "Digital Marketing Executive",
+    department: "Marketing",
+    location: "Belapur, Navi Mumbai",
+    type: "Full-time",
+    shortDescription: "Plan and run digital campaigns — SEO, ads, email and WhatsApp funnels — that turn awareness into qualified leads for Tally, Cloud and automation services.",
+    fullDescription: "Drive the digital growth engine at Sarvadnya. You will own search and paid campaigns, landing pages, email/WhatsApp nurturing and performance reporting, connecting SMEs with TallyPrime, AWS Cloud, managed support and business automation.",
+    aboutRole:
+      "You are the hands-on owner of our digital funnel: keyword research and SEO execution, Google/Meta ad campaigns, lead-capture pages, email and WhatsApp sequences, and weekly performance dashboards. Your work feeds the sales team a steady stream of qualified enquiries.",
+    lookingFor:
+      "Where you win with us:\n- 0-2 years in digital marketing (internship counts) — B2B/tech marketing is a plus\n- Hands-on with Google Ads, Meta Ads, Google Search Console and analytics\n- Comfort with SEO tools (keyword research, on-page fixes, content briefs)\n- Spreadsheet-savvy: you report on conversions, not just impressions\n- Understanding of lead funnels for services businesses is a bonus",
+    whyJoinUs:
+      "Why this role stands out:\n- Own real campaigns and measurable leads from day one\n- Learn B2B SEO, paid media and marketing automation end-to-end\n- Clear growth path into senior marketing roles\n- Modern, performance-driven culture",
+    postedAt: "2026-10-07T09:00:00Z",
+    requirements: [
+      "0-2 years of digital marketing experience (internships included)",
+      "Hands-on with Google/Meta Ads and analytics tools",
+      "Basic SEO knowledge: keywords, on-page, search console",
+      "Strong written communication and campaign reporting",
+      "Data-driven mindset with spreadsheet fluency"
+    ],
+    benefits: [
+      "Hands-on training across SEO, paid media and automation",
+      "Ownership of live campaign budgets and funnels",
+      "Flexible work arrangements",
+      "Clear path to senior marketing roles"
+    ]
+  },
+  {
+    id: "social-media-executive",
+    title: "Social Media Executive",
+    department: "Marketing",
+    location: "Belapur, Navi Mumbai",
+    type: "Full-time",
+    shortDescription: "Own Sarvadnya's social presence — reels, posts, community and follower-to-lead conversion across Instagram, LinkedIn, Facebook and YouTube.",
+    fullDescription: "Build and manage our social media presence across Instagram, LinkedIn, Facebook, YouTube and WhatsApp. You will create short-form videos and design posts, plan and schedule content calendars, engage our community and convert followers into enquiries for Tally, Cloud and support services.",
+    aboutRole:
+      "You are the voice of Sarvadnya on social. Day to day: shoot and edit reels and shorts, design static posts, run the content calendar, reply to comments/DMs, coordinate with the digital marketing team on paid boosts, and report growth and enquiry metrics weekly. A strong portfolio with your own content is a big plus.",
+    lookingFor:
+      "What makes a strong candidate:\n- 0-2 years managing social media for brands (internship counts)\n- Confident with reels/shorts, Canva and basic editing tools (CapCut etc.)\n- A creative eye for hooks, thumbnails and clean post design\n- Understands engagement metrics and how social drives enquiries\n- English fluency for B2B-friendly copy; Hindi/Marathi is a bonus",
+    whyJoinUs:
+      "Why this role stands out:\n- Your content reaches real SME decision-makers every day\n- Freedom to experiment with formats and trends\n- Build a standout reel/portfolio with full creative ownership\n- Flexible work culture with clear growth into social media lead roles",
+    postedAt: "2026-10-07T09:00:00Z",
+    requirements: [
+      "0-2 years of social media management (internships included)",
+      "Hands-on with reels/shorts, Canva and basic video editing",
+      "Strong visual sense and English copywriting",
+      "Comfortable tracking and reporting engagement metrics",
+      "A personal or college content portfolio is a big plus"
+    ],
+    benefits: [
+      "Full creative ownership of brand channels",
+      "Training on paid boosts and B2B social strategy",
+      "Flexible work arrangements",
+      "Clear path to social media lead roles"
     ]
   }
 ];

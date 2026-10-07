@@ -89,16 +89,19 @@ export async function GET(request: Request) {
     const db = await getDb();
     const col = db.collection('orders');
 
-    // Spec §4.4: the ledger is a payments record — project OUT `ip`. The `_id` is
-    // KEPT (serialised by serializeData) because the POST status-change contract
-    // addresses orders by their ObjectId; the plan doc's `_id: 0` shorthand was an
-    // error that would have made every ledger row un-updatable.
-    const projection = { ip: 0 } as const;
+    // CHANGE: 2026-10-07 — owner follow-up: request context (ip + requestMeta
+    // headers + background geo) is now stored with the transaction by the public
+    // repo's /api/cart/order, and the detail modal renders it. Projection
+    // therefore NO LONGER drops `ip` — the earlier SP-3 §4.4 privacy stance
+    // ("project out ip") is superseded by the owner's explicit request to
+    // collect + store + show it. Table columns stay clean; the data loads only
+    // into the detail modal. The `_id` stays serialised (POST addresses orders
+    // by ObjectId — the plan doc's `{ _id: 0, ip: 0 }` shorthand was an error).
 
     const [total, docs] = await Promise.all([
       col.countDocuments(filter),
       col
-        .find(filter, { projection })
+        .find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)

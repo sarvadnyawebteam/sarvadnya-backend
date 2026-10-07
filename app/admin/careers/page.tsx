@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Job } from '@/lib/jobs';
+// CHANGE: 2026-10-07 — owner follow-up: Account management merged INTO the
+// Careers page as a third tab (Job Listings | Applications | Accounts). The
+// standalone /admin/accounts page + sidebar entry were removed the same day.
+import AccountsTab from './accounts-tab';
 
 type Application = {
   _id: string;
@@ -16,7 +20,7 @@ type Application = {
 };
 
 export default function AdminCareers() {
-  const [activeTab, setActiveTab] = useState<'listings' | 'applications'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'applications' | 'accounts'>('listings');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +149,14 @@ export default function AdminCareers() {
           className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'applications' ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
         >
           Applications ({applications.length || '...'})
+        </button>
+        {/* CHANGE: 2026-10-07 — owner follow-up: third tab hosts the merged
+            candidate-accounts admin (was /admin/accounts). */}
+        <button 
+          onClick={() => setActiveTab('accounts')}
+          className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'accounts' ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+        >
+          Accounts
         </button>
       </div>
 
@@ -286,6 +298,10 @@ export default function AdminCareers() {
             </div>
           )}
         </div>
+      ) : activeTab === 'accounts' ? (
+        // CHANGE: 2026-10-07 — owner follow-up: merged candidate-accounts admin
+        // (was the standalone /admin/accounts page, deleted the same day).
+        <AccountsTab />
       ) : (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
