@@ -44,12 +44,14 @@ be created/verified.
    called by `app/admin/layout.tsx` on every admin page; a 401 redirects to
    `/admin/login`.
 3. **Logout** — `POST /api/admin/logout` clears the cookie.
-4. **Route guard** — `proxy.ts` protects `/admin` and `/api/admin` by checking the
-   `x-admin-key` header, the `admin_key` cookie, or the `__admin_token` session
-   cookie against `ADMIN_ACCESS_KEY`.
+4. **Route guard** — the middleware guard (**SP-4, 2026-10-06**: ported from the
+   dormant `proxy.ts` into `middleware.ts`, the file Next 15 actually reads) protects
+   `/admin` and `/api/admin` by checking the `x-admin-key` header, the `admin_key`
+   cookie, or the `__admin_token` session cookie against `ADMIN_ACCESS_KEY`. The
+   guard is **fail-closed**: with no `ADMIN_ACCESS_KEY` in env, no request is trusted.
 5. **Defense-in-depth** — email queue/ledger endpoints additionally use
    `isRequestAuthorized()` from `lib/admin-auth.ts` so a bypassed/misconfigured
-   proxy can never expose email sends.
+   guard can never expose email sends.
 
 ## Security Notes
 
@@ -58,8 +60,9 @@ be created/verified.
 - Admin credentials are hardcoded for the fork's internal use. If this fork ever
   needs to be shared more broadly, move them to env vars
   (`ADMIN_USERNAME` / `ADMIN_PASSWORD`).
-- `proxy.ts` rate-limits public `/api` routes (60 req/min/IP) — admin routes are
-  exempt but still token-guarded.
+- `middleware.ts` rate-limits public `/api` routes (60 req/min/IP) and — SP-4 — the
+  login endpoint as well (credential-stuffing brake); the other admin routes stay
+  exempt but are token-guarded.
 - Public write surface stays read-only where possible: `app/api/content`,
   `app/api/modules`, `app/api/tutorials` have write methods stripped in the
   frontend deployment; here admin routes are the intended writers.

@@ -1,53 +1,8 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next';
 
+// CHANGE: 2026-10-06 — SP-4: noindex layer — this deployment ships NO sitemap at all.
+// Was a full copy of the public site's route list with a placeholder baseUrl that
+// pointed at the frontend deployment. Owner rule: no SEO/indexing for the admin panel.
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://sarvadnya-infotech.vercel.app'; // Replace with actual production domain
-
-  const routes = [
-    '',
-    '/about',
-    '/addons',
-    '/capabilities',
-    '/careers',
-    '/cloud',
-    '/cloud/aws',
-    '/cloud/windows',
-    '/cloud/backup-for-tally',
-    '/cloud/tallycloudaccess',
-    '/contact',
-    '/demo',
-    '/do-more',
-    '/eula',
-    '/find-solution',
-    '/hrms',
-    '/learn-sara',
-    '/modules',
-    '/news',
-    '/privacy',
-    '/products',
-    '/products/silver',
-    '/products/gold',
-    '/products/server',
-    '/products/tallydrive',
-    '/products/tallycapital',
-    '/report-problem',
-    '/search',
-    '/services',
-    '/services/amc',
-    '/services/corporate-training',
-    '/services/mobile-app-biz',
-    '/services/tally-on-whatsapp',
-    '/services/tdl',
-    '/services/tss',
-    '/team',
-    '/terms',
-    '/tutorials',
-  ];
-
-  return routes.map((route) => ({
-    url: `${baseUrl}${route}`,
-    lastModified: new Date(),
-    changeFrequency: 'weekly' as const,
-    priority: route === '' ? 1 : 0.8,
-  }));
+  return [];
 }

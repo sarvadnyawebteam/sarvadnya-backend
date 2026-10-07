@@ -23,8 +23,10 @@ function isCronAuthorized(request: Request): boolean {
 }
 
 async function handle(request: Request) {
-  // Defense-in-depth: the proxy normally guards /api/admin, but the send path
-  // re-verifies credentials so a misconfigured proxy can never trigger emails.
+  // Defense-in-depth: the middleware guard normally protects /api/admin, but the
+  // send path re-verifies credentials so a misconfigured guard can never trigger
+  // emails. (CHANGE: 2026-10-06 — SP-4: the guard moved from the DORMANT proxy.ts
+  // into the live middleware.ts.)
   // Accepts the admin session (panel/tests) or a genuine Vercel cron call.
   if (!isRequestAuthorized(request) && !isCronAuthorized(request)) {
     return NextResponse.json(

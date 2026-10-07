@@ -1,4 +1,4 @@
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Playfair_Display } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -6,6 +6,13 @@ import "./globals.css";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 const playfair = Playfair_Display({subsets:['latin'],variable:'--font-playfair'});
+
+// CHANGE: 2026-10-06 — SP-4 noindex layer 3: this deployment is the admin panel and must
+// never appear in search engines (owner rule; layers 1-2 = robots.txt + middleware
+// X-Robots-Tag). The root layout is a server component, so this metadata is static.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export const viewport: Viewport = {
   colorScheme: "only light",

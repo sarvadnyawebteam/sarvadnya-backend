@@ -49,7 +49,8 @@ function isSameOrigin(rawUrl: string, expected: string): boolean {
 export async function POST(request: Request) {
   const meta = getRequestMeta(request);
 
-  // 1) Rate limit (in-memory; proxy.ts applies a coarser 60/min/IP global cap).
+  // 1) Rate limit (in-memory; the middleware guard applies a coarser 60/min/IP
+  //    global cap — moved from proxy.ts in SP-4, 2026-10-06).
   if (isRateLimited(meta.ip)) {
     visitorLog('warn', 'rate limited', { ip: maskIp(meta.ip) });
     return NextResponse.json({}, { status: 429, headers: { 'Retry-After': '30' } });
