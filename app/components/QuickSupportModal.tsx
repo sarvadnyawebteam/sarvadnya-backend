@@ -6,6 +6,14 @@ import SaraText from './SaraText';
 import { findMatchingTutorials, type Tutorial } from '@/lib/tutorial-matcher';
 import { matchTopic, getFallbackResponse, SARA_WELCOME, type Topic } from '@/lib/sara-topics';
 
+// CHANGE: 2026-10-07 — Sara persona rename (footer now "Sara • AI Consultant",
+// matching the public repo's chat route). The public repo ALSO gained an
+// in-chat lead-capture flow in this file (lead-intent offer card → name/email/
+// phone Q&A → user-confirm card → POST /api/email/submit destination 'ask-sara').
+// That feature is deliberately NOT ported here: this repo's app/(site)+components
+// tree is a dormant leftover (isolation doc §8) and this deployment never serves
+// the chat UI. Port it only if this deployment ever serves the site pages.
+
 interface Message {
   id: string;
   text: string;
@@ -640,7 +648,7 @@ export default function QuickSupportModal({ isOpen, onClose }: QuickSupportModal
             )}
           </form>
           <p className="mt-3 text-center text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-            Sara • Sales Consultant
+            Sara • AI Consultant
           </p>
         </div>
 

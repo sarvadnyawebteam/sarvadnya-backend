@@ -22,6 +22,11 @@ export default function AdminEmailConfig() {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [sender, setSender] = useState('');
   const [destinations, setDestinations] = useState<Record<string, string>>({});
+  // CHANGE: 2026-10-07 — One GLOBAL CC, applied to every email this deployment
+  // sends (the public repo reads the SAME shared settings for its auto-reply,
+  // so one place configures both deployments).
+  const [globalCcEnabled, setGlobalCcEnabled] = useState(false);
+  const [globalCc, setGlobalCc] = useState('');
   const [stats, setStats] = useState<QueueStats | null>(null);
   const [recent, setRecent] = useState<any[]>([]);
 
@@ -41,6 +46,9 @@ export default function AdminEmailConfig() {
       );
 
       setSender(settingsMap.get('RESEND_SENDER_EMAIL') || '');
+      // CHANGE: 2026-10-07 — global CC state; '1'/'true'/'yes'/'on' = enabled.
+      setGlobalCcEnabled(['1', 'true', 'yes', 'on'].includes(String(settingsMap.get('EMAIL_CC_ENABLED') || '').trim().toLowerCase()));
+      setGlobalCc(settingsMap.get('EMAIL_CC') || '');
 
       let destParsed: Record<string, string> = {};
       try {
@@ -80,6 +88,12 @@ export default function AdminEmailConfig() {
         return `"${key}" contains an invalid email address.`;
       }
     }
+    // CHANGE: 2026-10-07 — global CC must be a single valid address when enabled.
+    if (globalCcEnabled) {
+      const cc = globalCc.trim();
+      if (!cc) return 'Global CC is enabled but no address is set.';
+      if (!EMAIL_RE.test(cc)) return 'Global CC address is invalid.';
+    }
     return null;
   };
 
@@ -105,6 +119,8 @@ export default function AdminEmailConfig() {
           settings: [
             { key: 'RESEND_SENDER_EMAIL', value: sender.trim() },
             { key: 'EMAIL_DESTINATION_RECIPIENTS', value: JSON.stringify(cleanDest, null, 2) },
+            { key: 'EMAIL_CC_ENABLED', value: globalCcEnabled ? '1' : '0' },
+            { key: 'EMAIL_CC', value: globalCc.trim() },
           ],
         }),
       });
@@ -261,6 +277,37 @@ export default function AdminEmailConfig() {
                 with no receiver are still saved but produce no email.
               </p>
             </div>
+          </div>
+
+          {/* CHANGE: 2026-10-07 — One GLOBAL CC (owner: "one global CC, all emails").
+              Applied to every email the site sends — internal form copies here, and
+              the customer auto-reply on the public repo (shared settings). OFF by
+              default; even when ON, an empty or invalid address produces no CC, so
+              saving can never break or trigger a send. */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-black uppercase tracking-widest text-[#0371a3]">3 · Global CC (all emails)</h2>
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={globalCcEnabled}
+                onChange={(e) => setGlobalCcEnabled(e.target.checked)}
+                className="w-4 h-4 accent-[#0371a3]"
+              />
+              <span className="text-xs font-bold text-slate-800">Enable a single CC address on every email</span>
+            </label>
+            <input
+              type="text"
+              className={`w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#0371a3] ${!globalCcEnabled ? 'opacity-50' : ''}`}
+              placeholder="cc@sarvadnyainfotech.com"
+              value={globalCc}
+              onChange={(e) => setGlobalCc(e.target.value)}
+              disabled={!globalCcEnabled}
+            />
+            <p className="text-[10px] text-slate-400 font-medium">
+              Stored as EMAIL_CC / EMAIL_CC_ENABLED in the shared settings DB — one place configures both
+              deployments. Internal copies &amp; the customer auto-reply all carry it. Disabled by default, and
+              an empty/invalid address yields no CC even when toggled on.
+            </p>
           </div>
 
           <div className="pt-6 border-t border-slate-100">

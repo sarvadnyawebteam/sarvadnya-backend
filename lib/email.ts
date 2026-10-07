@@ -284,6 +284,29 @@ export async function resolveRecipients(input: {
   return resolveFormRecipients(input.formType);
 }
 
+// CHANGE: 2026-10-07 — One GLOBAL CC for every internal form copy this
+// deployment sends. The toggle + address are read from the SHARED settings DB
+// (admin panel /admin/email-config) with env fallbacks; disabled by default and
+// an invalid address yields NO cc, so enabling can never break or trigger a
+// send. The frontend repo applies the same single source to its client
+// auto-reply; this repo predates the auto-reply module and only sends internal
+// copies.
+export async function getGlobalCc(): Promise<string[] | null> {
+  let settings: Record<string, any> = {};
+  try {
+    settings = await getSettings();
+  } catch {
+    settings = {};
+  }
+  const flag = (v: unknown): boolean => ['1', 'true', 'yes', 'on'].includes(String(v || '').trim().toLowerCase());
+  const fromSettings = String(settings.EMAIL_CC_ENABLED || '');
+  const enabled = fromSettings ? flag(fromSettings) : flag(process.env.EMAIL_CC_ENABLED || '0');
+  if (!enabled) return null;
+  const address = String(settings.EMAIL_CC || process.env.EMAIL_CC || '').trim().toLowerCase();
+  if (!isValidEmail(address)) return null;
+  return [address];
+}
+
 export async function sendInternalFormCopy(
   submission: FormSubmissionPayload,
   options?: { recipients?: string[]; from?: string }
@@ -307,9 +330,13 @@ export async function sendInternalFormCopy(
   }
 
   const resend = new Resend(apiKey);
+  // CHANGE: 2026-10-07 — Global CC rides the same payload; null when
+  // disabled/invalid → no cc key at all (see getGlobalCc above).
+  const globalCc = await getGlobalCc();
   const sendPayload: {
     from: string;
     to: string[];
+    cc?: string[];
     subject: string;
     html: string;
     replyTo?: string;
@@ -317,6 +344,7 @@ export async function sendInternalFormCopy(
   } = {
     from,
     to: recipients,
+    ...(globalCc ? { cc: globalCc } : {}),
     subject: getSubject(submission.formType),
     html: buildFormEmailHtml(submission),
     tags: [

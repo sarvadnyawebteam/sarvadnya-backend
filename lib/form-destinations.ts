@@ -59,6 +59,13 @@ export const FORM_DESTINATIONS: FormDestination[] = [
   { key: 'contact', label: 'Contact Page', paths: ['/contact'], category: 'others' },
   { key: 'find-solution', label: 'Find Solution', paths: ['/find-solution'], category: 'others' },
   { key: 'report-problem', label: 'Report a Problem', paths: ['/report-problem'], category: 'others' },
+  // CHANGE: 2026-10-07 — Ask Sara chat leads. The public repo's in-chat capture
+  // POSTs /api/email/submit with destination 'ask-sara' (a chat has no page
+  // path, so paths=[] — the destination prop drives routing). OPT-IN: leave the
+  // receiver blank until the owner wants chat leads emailed; blank = chat leads
+  // SAVE but email NOBODY (the safety contract — a misconfiguration can never
+  // fire an unwanted email on live).
+  { key: 'ask-sara', label: 'Ask Sara Chat Leads', paths: [], category: 'others' },
 ];
 
 export const KNOWN_DESTINATION_KEYS = FORM_DESTINATIONS.map((d) => d.key);
