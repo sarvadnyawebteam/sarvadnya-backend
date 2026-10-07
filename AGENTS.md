@@ -188,6 +188,23 @@ The read-only **orders ledger** + **summary/export** for the public site's check
 | **`proxy.ts` deleted** | `git rm`'d. Never let it return in this repo — on a future Next 16 upgrade the convention flips and the two guard files would drift. `middleware.ts` is the single live guard. |
 | **XFO/nosniff deliberately NOT duplicated** | `next.config.js` `headers()` (`source: '/(.*)'`) already applies X-Frame-Options, X-Content-Type-Options, CSP, HSTS, COOP/CORP on every path; middleware added only `X-Robots-Tag` + `X-Response-Time` (proxy port, harmless). |
 
+### 14. Career Accounts Admin (Task 4, 2026-10-07)
+
+The **candidate sign-up accounts** behind the PUBLIC site's `/careers` auth are managed here. The `careers_users` / `careers_sessions` collections are shared (the public site writes, this panel edits); `lib/careers-auth.ts` is **ported from the public repo** (collection accessors + `CareersUser`/`CareersSession` types) — port future changes by hand.
+
+| File | Role |
+| :--- | :--- |
+| `lib/careers-auth.ts` | Ported 2026-10-07 from the public repo (collection names `careers_users` / `careers_sessions`, session-token helpers). |
+| `app/api/admin/careers/users/route.ts` | GET list + optional `?q=` search over name/email/phone (escaped regex). **`passwordHash` is never serialized anywhere in this feature.** Ported from the public repo route that Task 1 removed there (commit `1112177` added it THERE with zero auth); here it sits behind the middleware guard — no per-route auth calls (nested convention). |
+| `app/api/admin/careers/users/[id]/route.ts` | GET detail / PATCH edit (`fullName`, `phone`, `email`) / **DELETE**. PATCH validates the email (RFC-ish regex) and applies **unique-lite** — an email already on another account returns 409 (there is no unique index on the shared collection, so the check is explicit). DELETE removes the account **and cascades `careers_sessions` by `userId`** (a deleted login must not keep valid session tokens), and best-effort deletes a Vercel Blob resume URL (gated on `blob.vercel-storage.com`, failures swallowed — cleanup must never block deletion). Invalid ObjectId → 400, no match → 404. |
+| `app/api/admin/careers/[id]/visibility/route.ts` | PATCH `{ visible }` on the SHARED `careers` collection — ported from the same removed public route, plus a 400/404 on bad/missing ids. **The public site's `/api/careers/list` + `/api/careers/visible` filter `visible: { $ne: false }` (public Task 1), so toggling here immediately shows/hides the job on the live site.** Doc absent `visible` = visible. |
+| `app/admin/accounts/page.tsx` | Searchable table (debounced `?q=`), inline edit panel, **typed-confirm delete** (must type `DELETE`; warns sign-in sessions are revoked + resume removed), resume opens in a new tab. |
+| `app/admin/careers/page.tsx` | Per-row **Visible / Hidden** toggle button next to Edit/Delete (PATCH `…/visibility`; refetches the list). |
+| `app/admin/AdminSidebar.tsx` | "Accounts" entry under Careers. |
+| `scripts/accounts-admin-test.mjs` | E2E against a locally-spawned dev server (free port): bare users GET → 401, `x-admin-key` → 200 array; CRUD cycle on a marked `__e2e_test__@example.com` doc (direct-DB insert → PATCH → GET → DELETE), **DELETE cascades sessions**, invalid ObjectId → 400/404; visibility PATCH writes `visible` and the frontend-filter query (`visible: {$ne: false}`) no longer matches hidden jobs; teardown always removes marked docs (users + sessions + jobs) and kills the server. RED-verified (routes absent → 11 failures) then GREEN (17/17). `npm run test:accounts`, wired into `test:all`. |
+
+**Load-bearing rules:** the accounts **email is the login identity** — PATCH validates it and refuses collisions; the DELETE is destructive by design (owner's ask: full account management), so the UI demands the typed `DELETE` confirm. **Do not serialize `passwordHash`.** Rate-limit/login posture is the middleware guard's (SP-4 §13) — no per-route auth was added.
+
 ## Developer Guidelines
 - **Surgical Updates:** Always prefer targeted `replace` over complete file rewrites for existing files.
 - **Accessibility:** Maintain high contrast ratios and ensure interactive elements have clear focus states.
@@ -199,4 +216,4 @@ The read-only **orders ledger** + **summary/export** for the public site's check
 - **Validate Before Completing:** Before marking any task as done, re-read the original user request, re-check every todo item, and verify each requirement is actually satisfied. Requirements get silently dropped during scope — always do a second pass against the original prompt to ensure nothing was missed.
 
 ---
-*Last Updated: 2026-10-03 (SP-3 payments admin — §10 actor-generalised audit builder + `lib/order-status.ts`, new §12 order ledger + summary)*
+*Last Updated: 2026-10-07 (Task 4 — career candidate Accounts admin: §14 new; §6 global-CC + ask-sara destination notes)*
