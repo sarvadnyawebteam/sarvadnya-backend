@@ -9,12 +9,17 @@ interface JobApplicationModalProps {
   isOpen: boolean;
   onClose: () => void;
   job: Job | null;
+  // CHANGE: 2026-10-08 — signed-in candidate account, prefills name/email/phone below.
+  // Ported from the public repo's quick-apply work (careers-client passes `user`);
+  // without this prop the careers page failed typecheck (TS2322).
+  user?: any;
 }
 
 export default function JobApplicationModal({ 
   isOpen, 
   onClose, 
-  job
+  job,
+  user
 }: JobApplicationModalProps) {
   const [formData, setFormData] = useState({
     name: '',
@@ -41,6 +46,19 @@ export default function JobApplicationModal({
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // CHANGE: 2026-10-08 — prefill from the signed-in candidate account (ported from the
+  // public repo's JobApplicationModal). `|| prev.field` keeps anything already typed.
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.fullName || prev.name,
+        email: user.email || prev.email,
+        phone: user.phone || prev.phone,
+      }));
+    }
+  }, [user]);
 
   if (!isOpen || !job) return null;
 

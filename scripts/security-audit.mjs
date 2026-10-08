@@ -70,21 +70,34 @@ if (existsSync(configPath)) {
 
 // ─── 4. Middleware Check ───────────────────────────────────────
 results.push('\n🛡️  Middleware & Auth');
+// CHANGE: 2026-10-08 — this section used to assert proxy.ts EXISTS with rate limiting and
+// admin protection in it. proxy.ts was DELETED by SP-4 (2026-10-06, AGENTS §13): Next 15
+// never reads it, so everything it "protected" ran unauthenticated. The audit was red on a
+// check that demanded the exact file SP-4 removed. Assert the LIVE guard instead.
 const proxyPath = resolve(root, 'proxy.ts');
-check('proxy.ts exists', existsSync(proxyPath));
-if (existsSync(proxyPath)) {
-  const proxy = readFileSync(proxyPath, 'utf-8');
-  check('Rate limiting in proxy.ts', /rateLimitMap/.test(proxy));
-  check('Admin route protection in proxy.ts', /admin/.test(proxy));
-  check('Content-Type validation in proxy.ts', /content-type/i.test(proxy));
+check('proxy.ts stays deleted (SP-4 — middleware.ts is the live guard, AGENTS §13)', !existsSync(proxyPath));
+const mwPath = resolve(root, 'middleware.ts');
+if (existsSync(mwPath)) {
+  const mw = readFileSync(mwPath, 'utf-8');
+  check('middleware.ts runs the admin guard (isAdminPath + isAdminRequest)', /isAdminPath\(/.test(mw) && /isAdminRequest\(/.test(mw));
+  check('unauthenticated admin API answers 401 (nested convention, SP-4)', /status:\s*401/.test(mw));
+  check('middleware.ts rate-limits /api/* (60 req/min incl. admin login)', /checkRateLimit\(/.test(mw));
+  check('middleware.ts gates unsupported write content-types (415)', /isUnsupportedWrite\(/.test(mw) && /status:\s*415/.test(mw));
+  check('middleware.ts sets the noindex header (owner rule, SP-4 layer 2)', /X-Robots-Tag/.test(mw));
+} else {
+  check('middleware.ts exists (the live guard on Next 15)', false);
 }
 
-// ─── 5. API Security Library Check ─────────────────────────────
+// ─── 5. Security Utilities Check ─────────────────────────────
 results.push('\n📚 Security Utilities');
-const securityLib = resolve(root, 'lib', 'api-security.ts');
-check('lib/api-security.ts exists', existsSync(securityLib));
-const rateLimitLib = resolve(root, 'lib', 'rate-limit.ts');
-check('lib/rate-limit.ts exists', existsSync(rateLimitLib));
+// CHANGE: 2026-10-08 — same stale-expectation fix as the public repo: lib/api-security.ts
+// and lib/rate-limit.ts were dead code deleted on 2026-07-29, so these two checks have
+// been red since. What actually guards this deployment is lib/admin-guard.ts (SP-4,
+// unit-tested by npm run test:guard) — assert THAT exists and is wired into middleware.
+const guardLib = resolve(root, 'lib', 'admin-guard.ts');
+check('lib/admin-guard.ts exists (SP-4 guard: auth + rate limit + content gate)', existsSync(guardLib));
+const mwText = existsSync(mwPath) ? readFileSync(mwPath, 'utf-8') : '';
+check('middleware.ts imports the guard from lib/admin-guard.ts', /from ['"]\.\/lib\/admin-guard\.ts['"]/.test(mwText));
 
 // ─── 6. MongoDB Config Check ──────────────────────────────────
 results.push('\n🗄️  Database Configuration');

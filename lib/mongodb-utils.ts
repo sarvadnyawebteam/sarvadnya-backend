@@ -1,5 +1,9 @@
 import clientPromise from './mongodb';
 import { ObjectId } from 'mongodb';
+// CHANGE: 2026-10-08 — re-added with the news port below. The working-tree port of the
+// public repo's mongodb-utils (news helpers, brand-partner reconciliation) landed as a
+// wholesale file replacement and dropped these nested-only admin imports, breaking
+// updateTssRenewalStatus/updateOrderStatus (nested AGENTS §10/§12).
 import type { Document, UpdateFilter } from 'mongodb';
 // CHANGE: 2026-10-02 — status-change audit trail (SP-2). Pure helper; supplies the
 // atomic $set + $push pair used by updateTssRenewalStatus.
@@ -9,6 +13,8 @@ import { statusChangeUpdate } from './status-history';
 // this file only runs under tsc/Next, never direct Node type-stripping.
 import { orderStatusChangeUpdate } from './order-status';
 import type { OrderStatus } from './order-status';
+import { staticPartners } from './partners';
+import { enrichNews } from './news-utils';
 // Caching disabled
 
 export async function getDb() {
@@ -246,6 +252,39 @@ export async function updateReview(id: string, data: any) {
 // Partners helpers
 async function fetchPartners(type?: string) {
   const col = await getCollection('partners');
+
+  // CHANGE: 2026-08-26 — The home "Certified Industry Partners" showcase (type=brand) is owned by the
+  // FRONTEND canonical list in lib/partners.ts (AWS → Biz Analyst → TallyPrime → OTU → NoSky). Every read
+  // reconciles the DB to that list (delete stale entries, upsert missing, enforce order) so the sequence and
+  // logos stay correct even if the DB still holds old seed data (e.g. CredFlow / "Tally Software").
+  // Admin-managed types (about / team) are left untouched.
+  if (type === 'brand') {
+    const canonical = staticPartners.map(({ _id, ...p }) => ({
+      name: p.name,
+      imageUrl: p.imageUrl,
+      type: 'brand' as const,
+    }));
+
+    const existing = await col.find({ type: 'brand' }).toArray();
+    const canonicalNames = new Set(canonical.map(p => p.name));
+
+    const stale = existing.filter((doc: any) => !canonicalNames.has(doc.name)).map((doc: any) => doc._id);
+    if (stale.length) await col.deleteMany({ _id: { $in: stale } });
+
+    for (const p of canonical) {
+      await col.updateOne(
+        { type: 'brand', name: p.name },
+        { $set: { imageUrl: p.imageUrl }, $setOnInsert: { name: p.name, type: 'brand', createdAt: new Date() } },
+        { upsert: true }
+      );
+    }
+
+    const data = await col.find({ type: 'brand' }).toArray();
+    const order = new Map(canonical.map((p, i) => [p.name, i]));
+    data.sort((a: any, b: any) => (order.get(a.name) ?? 999) - (order.get(b.name) ?? 999));
+    return serializeData(data);
+  }
+
   const query = type ? { type } : {};
   const data = await col.find(query).sort({ createdAt: 1 }).toArray();
   return serializeData(data);
@@ -287,13 +326,41 @@ export async function deletePartner(id: string) {
 }
 
 // News helpers
+// CHANGE: 2026-08-31 — Sort news so the latest item appears first (newest `date` on top).
+// Falls back to insertion order (_id) for entries without a parseable date.
+// CHANGE: 2026-08-31 — Enriched to the blog shape via enrichNews() so every consumer (news listing,
+// /api/news, search, sitemap, article pages) gets slug/excerpt/readingTime/tags/author/dateIso
+// auto-derived from the legacy admin fields. Explicit values win when present.
 async function fetchNews() {
   const col = await getCollection('news');
-  const data = await col.find({}).sort({ _id: -1 }).toArray();
-  return serializeData(data);
+  const data = await col.find({}).toArray();
+  data.sort((a, b) => {
+    const ta = new Date(a.date).getTime();
+    const tb = new Date(b.date).getTime();
+    const va = Number.isNaN(ta) ? 0 : ta;
+    const vb = Number.isNaN(tb) ? 0 : tb;
+    if (va !== vb) return vb - va;
+    return String(b._id).localeCompare(String(a._id));
+  });
+  return serializeData(data.map((d) => enrichNews(d)));
 }
 
 export const getNews = async () => fetchNews();
+
+// CHANGE: 2026-08-31 — Single-article lookup by slug (used by /news/[slug]).
+// Matches the exact final slug from enrichNews() (explicit doc.slug OR auto-derived), so both
+// admin-crafted slugs and auto-generated ones resolve. Returns null when not found.
+export async function getNewsBySlug(slug: string) {
+  if (!slug) return null;
+  const col = await getCollection('news');
+  const data = await col.find({}).toArray();
+  for (const d of data) {
+    if (enrichNews(d).slug === slug) {
+      return serializeData(enrichNews(d));
+    }
+  }
+  return null;
+}
 
 export async function addNews(data: any) {
   const col = await getCollection('news');
@@ -356,7 +423,6 @@ export async function getSubmissionsPaginated(query: SubmissionQuery) {
       { name: regex },
       { email: regex },
       { ip: regex },
-      { ipMasked: regex },
       { service: regex },
       { contact: regex },
       { description: regex },
@@ -394,7 +460,6 @@ export async function exportAllSubmissions(query: { formType?: string; search?: 
       { name: regex },
       { email: regex },
       { ip: regex },
-      { ipMasked: regex },
       { service: regex },
       { contact: regex },
       { description: regex },
@@ -456,6 +521,10 @@ export async function getTssRenewals() {
   return serializeData(data);
 }
 
+// CHANGE: 2026-10-08 — restored to its nested AGENTS §10 shape. The news port replaced
+// this with the public repo's 2-arg updateOne variant, which (a) dropped the SP-2 audit
+// trail — no statusHistory push — and (b) returned UpdateResult, so the admin PATCH
+// route's `updated.status` read a field that does not exist (TS2339 + TS2554).
 export async function updateTssRenewalStatus(id: string, status: string, note?: string) {
   // CHANGE: 2026-10-02 — status changes now append an audit event (SP-2).
   // Delegates to statusChangeUpdate so the status write and the history push are
@@ -487,10 +556,9 @@ export async function updateTssRenewalStatus(id: string, status: string, note?: 
 // status + note from the ledger). Mirrors updateTssRenewalStatus exactly: the
 // atomic $set + $push pair comes from orderStatusChangeUpdate (which reuses the
 // SP-2 builder per AGENTS.md §10), findOneAndUpdate(returnDocument:'after')
-// returns the fresh doc in one round-trip, the id is guarded so a malformed one
-// 404s instead of throwing a 500. `status` is narrowed by the route's
-// isValidOrderStatus guard before this is called. Actor stays the builder's
-// default 'admin' — the panel is the only writer.
+// hands back the updated doc, invalid ObjectId → null (route maps it to 404).
+// Restored 2026-10-08 by the same news-port fix as above (the payments route
+// imports it — TS2305 without this).
 export async function updateOrderStatus(id: string, status: OrderStatus, note?: string) {
   if (!ObjectId.isValid(id)) {
     return null;
