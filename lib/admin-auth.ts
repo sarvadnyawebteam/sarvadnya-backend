@@ -84,3 +84,8 @@ export function isRequestAuthorized(request: Request): boolean {
 
   return false;
 }
+
+export async function verifyAdmin(req: Request): Promise<boolean> {
+  if (isRequestAuthorized(req)) return true
+  return await verifySessionFromCookie()
+}

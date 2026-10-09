@@ -3,7 +3,9 @@ import { getDb } from '@/lib/db'
 import { verifyAdmin } from '@/lib/admin-auth'
 import { ObjectId } from 'mongodb'
 
-export async function GET(req:NextRequest,{params}:{params:{id:string}}){
+export async function GET(req: NextRequest, context: any){
+  const params = context.params
+
   try{
     const ok=await verifyAdmin(req)
     if (!ok) return NextResponse.json({error:'unauthorized'},{status:401})
