@@ -23,7 +23,10 @@ export async function GET() {
       visitorsToday: 0,
       orders: 0,
       ordersToday: 0,
-      accounts: 0
+      accounts: 0,
+      // CHANGE: 2026-10-09 — owner: surface chat transcripts + form drafts on the dashboard.
+      chats: 0,
+      drafts: 0
     };
 
     // Submissions count
@@ -84,6 +87,12 @@ export async function GET() {
     // Career candidate accounts (public /careers signup + this panel's manual create)
     const usersCol = await getCollection('careers_users');
     stats.accounts = await usersCol.countDocuments();
+
+    // Chat transcripts + non-submitted form drafts (visitor engagement; 2026-10-09 owner ask)
+    const chatsCol = await getCollection('chat_logs');
+    stats.chats = await chatsCol.countDocuments();
+    const draftsCol = await getCollection('drafts');
+    stats.drafts = await draftsCol.countDocuments();
 
     return NextResponse.json(stats);
   } catch (error) {

@@ -5,8 +5,8 @@ import Productbar from "../components/Productbar";
 import { theme as defaultTheme } from "@/lib/theme";
 import { getSettings, getNews } from "@/lib/mongodb-utils";
 import { palettes } from "@/lib/palettes";
-import { Analytics } from "@vercel/analytics/next"
-import { SpeedInsights } from "@vercel/speed-insights/next"
+// CHANGE: 2026-10-09 — Analytics/SpeedInsights moved to the root layout so the admin
+// panel is covered too; removed here to keep a single instance.
 import { VisitorProvider } from "../components/VisitorProvider";
 
 const NewsFeed = dynamic(() => import("../components/NewsFeed"), {
@@ -85,8 +85,6 @@ export default async function SiteLayout({
         <SupportButton initialSettings={settings} />
         <NotificationToast />
       </VisitorProvider>
-      <Analytics />
-      <SpeedInsights />
     </>
   );
 }

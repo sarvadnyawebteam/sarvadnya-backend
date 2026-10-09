@@ -37,6 +37,10 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
     { label: 'Dashboard', href: '/admin', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
     { label: 'Submissions', href: '/admin/submissions', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
     { label: 'Visitors', href: '/admin/visitors', icon: 'M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5 0 4-2.5 4-9s-1.5-9-4-9-4 2.5-4 9 1.5 9 4 9zM3.5 12h17' },
+    // CHANGE: 2026-10-09 — owner: recorded chat history + form drafts must be visible.
+    // Chat transcripts + never-submitted form drafts now have their own screens.
+    { label: 'Chats', href: '/admin/chats', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z' },
+    { label: 'Drafts', href: '/admin/drafts', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' },
     { label: 'Email Config', href: '/admin/email-config', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
     // CHANGE: 2026-10-02 — SP-1 cart build: admin price manager for the site-wide cart.
     { label: 'Prices', href: '/admin/prices', icon: 'M6 3h12M6 8h12M6 13l8.5 8M6 13h3a3 3 0 003-3H6m3 3c4 0 6-2.5 6-6' },

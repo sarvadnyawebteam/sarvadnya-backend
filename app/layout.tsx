@@ -2,6 +2,10 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { Geist, Playfair_Display } from "next/font/google";
 import { cn } from "@/lib/utils";
+// CHANGE: 2026-10-09 — owner: enable Vercel analytics on the admin deployment. Hosted in
+// the ROOT layout (not the (site) group) so the admin panel is instrumented too.
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
@@ -33,6 +37,10 @@ export default function RootLayout({
       </Script>
       <body className="relative min-h-full w-full bg-background text-foreground" suppressHydrationWarning>
         {children}
+        {/* CHANGE: 2026-10-09 — Vercel Web Analytics + Speed Insights, moved here from
+            app/(site)/layout.tsx so admin routes are measured as well. */}
+        <Analytics />
+        <SpeedInsights />
         {/* CHANGE: 2026-08-25 — Zoho SalesIQ TRACKING-ONLY embed (temporarily commented out for Leadfeeder testing).
         <script dangerouslySetInnerHTML={{ __html: `window.$zoho=window.$zoho || {};$zoho.salesiq=$zoho.salesiq||{ready:function(){}};$zoho.salesiq.ready(function(){try{$zoho.salesiq.floatbutton&&$zoho.salesiq.floatbutton.visible&&$zoho.salesiq.floatbutton.visible("hide")}catch(e){}try{$zoho.salesiq.chatbutton&&$zoho.salesiq.chatbutton.visible&&$zoho.salesiq.chatbutton.visible("hide")}catch(e){}})` }} />
         <script id="zsiqscript" defer src="https://salesiq.zohopublic.in/widget?wc=siq539386e56b76884f928a8048a569c499cd2f211af4903e74d1fcabc147a596a7" /> */}

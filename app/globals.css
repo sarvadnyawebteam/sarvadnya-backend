@@ -531,14 +531,16 @@ main > div:first-of-type {
   100% { transform: translate3d(-50%, 0, 0); }
 }
 
+/* CHANGE: 2026-10-09 — animation moved to an inline style in NewsFeed.tsx (measured
+   track width / 15 px/s) so the ticker speed is constant regardless of item count and
+   "about half" the previous fixed-duration speed. Only layout + GPU hints remain here
+   (matches the public repo). The pause rules below still win via !important. */
 .animate-marquee-infinite {
   display: flex !important;
   width: max-content !important;
-  animation: news-ticker-scroll 60s linear infinite !important;
   will-change: transform;
   backface-visibility: hidden;
   perspective: 1000px;
-  animation-play-state: running !important;
 }
 
 .pause-marquee-infinite,

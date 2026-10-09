@@ -6,6 +6,7 @@
 // payments flow (public repo) can stamp system-driven hops (created/verified) with
 // 'system' while the admin panel keeps the default 'admin'. Existing TSS callers
 // pass nothing and are unchanged.
+import { toDateMs } from './date-coerce.ts';
 
 /**
  * The only admin identity that exists — see lib/admin-auth.ts. The session token
@@ -88,6 +89,8 @@ export function isValidStatus(to: string): to is TssRenewalStatus {
  * is testable without rendering anything.
  */
 export function buildTimeline(history: StatusEvent[]): TimelineEntry[] {
-  const ordered = [...history].sort((a, b) => b.at.getTime() - a.at.getTime());
+  // CHANGE: 2026-10-09 — legacy `at` values may be ISO strings (JSON-dump import);
+  // toDateMs avoids the `.getTime is not a function` crash in the timeline.
+  const ordered = [...history].sort((a, b) => toDateMs(b.at) - toDateMs(a.at));
   return ordered.map((ev, i) => ({ ...ev, from: ordered[i + 1]?.to ?? null }));
 }

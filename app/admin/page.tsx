@@ -29,6 +29,9 @@ type AdminStats = {
   orders: number;
   ordersToday: number;
   accounts: number;
+  // CHANGE: 2026-10-09 — chat transcripts + form drafts (owner: show all metrics).
+  chats: number;
+  drafts: number;
 };
 
 export default function AdminDashboard() {
@@ -71,6 +74,8 @@ export default function AdminDashboard() {
         { label: 'TSS Renewals', desc: 'TSS renewal requests with serial numbers', value: stats?.tssRenewals || 0, href: '/admin/tss-renewals', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', color: 'bg-cyan-50 text-cyan-600' },
         { label: 'Job Applications', desc: 'Candidate applications for open positions', value: stats?.applications || 0, href: '/admin/careers', icon: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', color: 'bg-blue-50 text-blue-600' },
         { label: 'Site Visitors', desc: 'Tracked browsing sessions (passive identification)', value: stats?.visitors || 0, href: '/admin/visitors', icon: 'M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5 0 4-2.5 4-9s-1.5-9-4-9-4 2.5-4 9 1.5 9 4 9zM3.5 12h17', color: 'bg-cyan-50 text-cyan-600' },
+        // CHANGE: 2026-10-09 — visitorsToday was fetched but never shown (owner: show all metrics).
+        { label: 'Visitors Today', desc: 'New browsing sessions since midnight', value: stats?.visitorsToday || 0, href: '/admin/visitors', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'bg-sky-50 text-sky-600' },
       ]
     },
     {
@@ -80,6 +85,14 @@ export default function AdminDashboard() {
         { label: 'Learning Articles', desc: 'Tutorials, guides and knowledge base', value: stats?.learning || 0, href: '/admin/learning', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', color: 'bg-orange-50 text-orange-600' },
         { label: 'News & Updates', desc: 'Published articles and announcements', value: stats?.news || 0, href: '/admin/news', icon: 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z', color: 'bg-rose-50 text-rose-600' },
         { label: 'FAQ Entries', desc: 'Frequently asked questions by visitors', value: stats?.faq || 0, href: '/admin/faq', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'bg-teal-50 text-teal-600' },
+      ]
+    },
+    {
+      // CHANGE: 2026-10-09 — owner: recorded chat history + form drafts must be visible.
+      title: 'Chats & Drafts',
+      items: [
+        { label: 'Chat Transcripts', desc: 'Ask Sara conversations captured from the site', value: stats?.chats || 0, href: '/admin/chats', icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z', color: 'bg-teal-50 text-teal-600' },
+        { label: 'Form Drafts', desc: 'Form fills that were never submitted', value: stats?.drafts || 0, href: '/admin/drafts', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'bg-amber-50 text-amber-600' },
       ]
     },
     {
@@ -107,33 +120,39 @@ export default function AdminDashboard() {
           <p className="text-slate-500 text-sm mt-1">Real-time overview of your business infrastructure and content.</p>
         </div>
         
-        <div className="bg-white px-5 py-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System</span>
-            <div className={`w-2 h-2 rounded-full ${health?.status === 'ok' ? 'bg-teal-500' : 'bg-red-500'} animate-pulse`}></div>
-            <span className="text-sm font-bold text-slate-700">{loading ? 'Checking...' : health?.status === 'ok' ? 'Operational' : 'Error'}</span>
+        {/* CHANGE: 2026-10-09 — owner: remake the header controls; the refresh control was
+            a tiny icon and is now a proper labelled button. Health panel wraps on mobile. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="bg-white px-5 py-3.5 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System</span>
+              <div className={`w-2 h-2 rounded-full ${health?.status === 'ok' ? 'bg-teal-500' : 'bg-red-500'} animate-pulse`}></div>
+              <span className="text-sm font-bold text-slate-700">{loading ? 'Checking...' : health?.status === 'ok' ? 'Operational' : 'Error'}</span>
+            </div>
+            <div className="hidden sm:block h-6 w-px bg-slate-100"></div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database</span>
+              <span className={`text-sm font-bold ${health?.mongodb === 'connected' ? 'text-teal-600' : 'text-red-600'}`}>
+                {loading ? '...' : health?.mongodb === 'connected' ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+            <div className="hidden sm:block h-6 w-px bg-slate-100"></div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Version</span>
+              <span className="text-sm font-bold text-[#006569]">{health?.version || 'v1.1.390'}</span>
+            </div>
           </div>
-          <div className="h-6 w-px bg-slate-100"></div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database</span>
-            <span className={`text-sm font-bold ${health?.mongodb === 'connected' ? 'text-teal-600' : 'text-red-600'}`}>
-              {loading ? '...' : health?.mongodb === 'connected' ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          <div className="h-6 w-px bg-slate-100"></div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Version</span>
-            <span className="text-sm font-bold text-[#006569]">{health?.version || 'v1.1.390'}</span>
-          </div>
-          <button 
+          <button
             onClick={fetchData}
             disabled={refreshing}
-            className={`p-1.5 rounded-lg transition-all ${refreshing ? 'animate-spin text-slate-300' : 'text-[#006569] hover:bg-teal-50'}`}
+            aria-label="Refresh dashboard data"
+            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#006569] text-white text-sm font-bold shadow-sm shadow-teal-900/10 hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
               <path d="M21 3v5h-5"></path>
             </svg>
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </header>
@@ -146,31 +165,32 @@ export default function AdminDashboard() {
               <div className="h-px flex-grow bg-slate-100"></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* CHANGE: 2026-10-09 — owner: remake the metric cards. Larger icon tile,
+                  prominent value, full (non-truncated) label/description, clearer hover. */}
               {group.items.map((item, iIdx) => (
-                <Link 
-                  key={iIdx} 
+                <Link
+                  key={iIdx}
                   href={item.href}
-                  className="bg-white px-5 py-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all group relative overflow-hidden"
+                  className="group relative overflow-hidden bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-teal-100 transition-all"
                 >
-                  <div className={`absolute top-0 right-0 w-20 h-20 -mr-6 -mt-6 rounded-full opacity-5 transition-transform group-hover:scale-125 ${item.color.split(' ')[0]}`}></div>
-                  
-                  <div className="flex items-center gap-3 relative z-10">
-                    <div className={`p-2.5 rounded-xl shrink-0 ${item.color}`}>
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-[0.07] transition-transform duration-500 group-hover:scale-150 ${item.color.split(' ')[0]}`}></div>
+
+                  <div className="relative z-10 flex items-start justify-between">
+                    <div className={`p-3 rounded-2xl shadow-sm ${item.color}`}>
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d={item.icon} />
                       </svg>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-2xl font-black text-[#0f172a] leading-none mb-1">
-                        {loading ? '...' : item.value}
-                      </p>
-                      <p className="text-xs font-bold text-slate-700 truncate">{item.label}</p>
-                      <p className="text-[10px] text-slate-400 truncate">{item.desc}</p>
-                    </div>
-                    <svg className="w-4 h-4 text-slate-200 group-hover:text-[#006569] shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4 text-slate-300 group-hover:text-[#006569] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
+
+                  <p className="relative z-10 mt-4 text-3xl font-black text-[#0f172a] leading-none tabular-nums">
+                    {loading ? <span className="text-slate-300">—</span> : item.value}
+                  </p>
+                  <p className="relative z-10 mt-2 text-sm font-bold text-slate-700">{item.label}</p>
+                  <p className="relative z-10 mt-1 text-xs text-slate-400 leading-snug">{item.desc}</p>
                 </Link>
               ))}
             </div>

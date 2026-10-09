@@ -1,14 +1,48 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { NewsItem } from '@/lib/news';
+
+// CHANGE: 2026-10-09 — owner: the news ticker scrolled too fast. The marquee duration is
+// now derived from the MEASURED track width (ported from the public repo's NewsFeed) so
+// the speed stays a constant ~15 px/s — about half the public site's previous 30 px/s —
+// no matter how many headlines exist. Previously the speed was a fixed CSS duration
+// (60s / 120s), so it drifted with the item count.
+const TICKER_SPEED_PX_PER_SEC = 15;
 
 export default function NewsFeed({ initialData }: { initialData?: NewsItem[] }) {
   const [newsItems, setNewsItems] = useState<NewsItem[]>(initialData || []);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
   const [loading, setLoading] = useState(!initialData);
+  const [tickerDuration, setTickerDuration] = useState(200);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  // Measure the rendered track once laid out so px/s stays constant (ResizeObserver
+  // fires when offsetWidth first becomes non-zero, plus on resize / font load).
+  useEffect(() => {
+    const group = trackRef.current?.querySelector('[data-ticker-group]') as HTMLElement | null;
+    if (!group) return;
+
+    let currentDuration = 200; // matches initial useState
+    const measure = () => {
+      if (group.offsetWidth > 0) {
+        const next = Math.max(15, Math.round(group.offsetWidth / TICKER_SPEED_PX_PER_SEC));
+        // Only update when the difference is material (>5%) to avoid visible mid-scroll jumps
+        if (Math.abs(next - currentDuration) / currentDuration > 0.05) {
+          currentDuration = next;
+          setTickerDuration(next);
+        }
+      }
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(group);
+    document.fonts?.ready?.then(measure).catch(() => {});
+    return () => ro.disconnect();
+  }, [newsItems.length]);
 
   useEffect(() => {
     if (initialData) return;
@@ -68,9 +102,16 @@ export default function NewsFeed({ initialData }: { initialData?: NewsItem[] }) 
 
       {/* Marquee Container */}
       <div className="w-full overflow-hidden" key={`marquee-${newsItems.length}`}>
-        <div className="flex w-max whitespace-nowrap animate-marquee-infinite group-hover:pause-marquee-infinite">
+        <div
+          ref={trackRef}
+          className="flex w-max whitespace-nowrap animate-marquee-infinite group-hover:pause-marquee-infinite"
+          style={{
+            animation: `news-ticker-scroll ${tickerDuration}s linear infinite`,
+            willChange: 'transform',
+          } as React.CSSProperties}
+        >
           {/* First set of items */}
-          <div className="flex items-center gap-12 px-4 shrink-0">
+          <div data-ticker-group className="flex items-center gap-12 px-4 shrink-0">
             {newsItems.map((item, index) => (
               <div
                 key={`news-1-${index}`}
