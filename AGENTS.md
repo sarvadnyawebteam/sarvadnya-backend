@@ -101,17 +101,17 @@ Clients can never control recipients. `replyTo` is only set when the submitted e
 - **cPanel landing (`cpanel-landing/app/globals.css`):** local `--color-brand-*` ramp keyed to teal — 50 `#e6f5f5` … 500 `#1b8a8a`, 600 `#006569`, 700 `#005659`, 800 `#044a4b`, 900 `#033d3e`, 950 `#032e2f` — with WhatsApp `#25D366` buttons kept.
 - **Palette pickers (`lib/palettes.ts`, `app/(site)/products/product-theme.ts`):** teal-anchored (teal palette "Teal Corporate" `#00897b`/`#005a4e`/`#2dd4bf`, accent `#14b8a6`). Palette ids must stay stable (referenced by stored product data).
 
-### 8. Zoho SalesIQ — Tracking-Only Embed (No Chat UI)
+### 8. Zoho SalesIQ — REMOVED (2026-10-09)
 
-The site loads the client's Zoho SalesIQ widget script **for visitor tracking/analytics only** — the visible chat button is suppressed. Do not re-add a chat widget without explicit instruction.
+**Zoho SalesIQ is gone from this deployment entirely — chat AND tracking. Do not re-add it (script, CSP domain, or CSS) without explicit instruction.** The public frontend made the same move on 2026-10-09 and replaced it with **first-party capture**; this admin panel reads that data through its own routes (`/api/admin/chats`, `/api/admin/drafts`) — see §16.
 
-| File | Role |
+| File | What was removed |
 | :--- | :--- |
-| `app/layout.tsx` | End of `<body>`: raw SSR'd `<script>` tags (NOT `next/script` — order must be guaranteed): inline `window.$zoho` init + `$zoho.salesiq.ready(...)` hook that hides the chat button (`floatbutton.visible("hide")` / `chatbutton.visible("hide")`, try/catch both), then deferred `#zsiqscript` from `salesiq.zohopublic.in`. Root layout → present on every page. |
-| `app/globals.css` | CSS suppression layer (bottom of file): `#zs_fl_chat`, `span.siqico-chat.zsiq-chat-icn`, `#zsiqwidget`, `#zsiq_float`, `iframe[src*='salesiq']` → `display:none !important`. The script keeps loading so analytics continue; only the UI is hidden. |
-| `next.config.js` | CSP must keep the Zoho domains or tracking silently dies: `script-src`/`connect-src`(incl. `wss:`)/`img-src`/`frame-src` allow `*.zohopublic.in` (+ `*.zohocdn.com` for CDN assets). |
+| `app/layout.tsx` | The commented `<script>` block (`window.$zoho` init + `$zoho.salesiq.ready` hide-hook) and the deferred `#zsiqscript` from `salesiq.zohopublic.in`. It had been commented out for Leadfeeder testing; the dead code is now deleted. |
+| `app/globals.css` | The SalesIQ CSS suppression layer (`#zs_fl_chat`, `span.siqico-chat.zsiq-chat-icn`, `#zsiqwidget`, `#zsiq_float`, `iframe[src*='salesiq']`). No SalesIQ DOM nodes can exist any more. |
+| `next.config.js` | All Zoho domains dropped from the CSP: `*.zohopublic.in`, `*.zohocdn.com`, `salesiq.zohopublic.in`, `wss://*.zohopublic.in` (from `script-src` / `style-src` / `img-src` / `font-src` / `connect-src` / `frame-src`). |
 
-**Permanent alternative:** the chat button can also be disabled server-side in the SalesIQ dashboard (Settings → Widgets → visibility off) — tracking stays on there too.
+**Leadfeeder** (`sc.lfeeder.com`, `app/layout.tsx`) is a separate tracker and is untouched — only Zoho was removed.
 
 ### 9. Build Discipline (Local Machine)
 

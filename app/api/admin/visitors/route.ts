@@ -104,7 +104,7 @@ export async function GET(request: Request) {
       lastReferrer: v.lastReferrer || '',
       // CHANGE: 2026-08-29 — Return FULL IP (never masked) to the admin panel
       // so the table/detail view show the complete address. Search also covers
-      // the raw ip field. This page has zero Zoho/Leadfeeder dependency — the
+      // the raw ip field. This page has zero third-party dependency — the
       // data comes from our own /api/identify beacon into MongoDB.
       ip: v.ip || v.ipMasked || '',
       geo: v.geo ?? null,

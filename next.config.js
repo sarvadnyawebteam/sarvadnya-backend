@@ -1,13 +1,14 @@
 /** @type {import('next').NextConfig} */
-// CHANGE: 2026-08-21 — Zoho SalesIQ runs tracking-only (chat button hidden via JS); CSP allows its script/analytics domains
+// CHANGE: 2026-10-09 — Zoho SalesIQ removed entirely (chat + tracking); every Zoho domain
+// (*.zohopublic.in, *.zohocdn.com, salesiq.zohopublic.in, wss zoho) is dropped from the CSP.
 const csp = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel-insights.com https://va.vercel-scripts.com https://*.zohopublic.in https://*.zohocdn.com https://sc.lfeeder.com`,
-  `style-src 'self' 'unsafe-inline' https://*.zohocdn.com`,
-  `img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://img.youtube.com https://sarvadnya-infotech.vercel.app https://*.vercel-scripts.com https://*.zohopublic.in https://*.zohocdn.com`,
-  `font-src 'self' data: https://*.zohocdn.com`,
-  `connect-src 'self' https://api.groq.com https://*.public.blob.vercel-storage.com https://sarvadnya-infotech.vercel.app https://*.vercel-insights.com https://*.zohopublic.in wss://*.zohopublic.in https://*.zohocdn.com https://sc.lfeeder.com`,
-  `frame-src 'self' https://www.google.com https://salesiq.zohopublic.in`,
+  `script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live https://*.vercel-insights.com https://va.vercel-scripts.com https://sc.lfeeder.com`,
+  `style-src 'self' 'unsafe-inline'`,
+  `img-src 'self' data: blob: https://*.public.blob.vercel-storage.com https://img.youtube.com https://sarvadnya-infotech.vercel.app https://*.vercel-scripts.com`,
+  `font-src 'self' data:`,
+  `connect-src 'self' https://api.groq.com https://*.public.blob.vercel-storage.com https://sarvadnya-infotech.vercel.app https://*.vercel-insights.com https://sc.lfeeder.com`,
+  `frame-src 'self' https://www.google.com`,
   `object-src 'none'`,
   `base-uri 'self'`,
   `form-action 'self'`,

@@ -41,9 +41,6 @@ export default function RootLayout({
             app/(site)/layout.tsx so admin routes are measured as well. */}
         <Analytics />
         <SpeedInsights />
-        {/* CHANGE: 2026-08-25 — Zoho SalesIQ TRACKING-ONLY embed (temporarily commented out for Leadfeeder testing).
-        <script dangerouslySetInnerHTML={{ __html: `window.$zoho=window.$zoho || {};$zoho.salesiq=$zoho.salesiq||{ready:function(){}};$zoho.salesiq.ready(function(){try{$zoho.salesiq.floatbutton&&$zoho.salesiq.floatbutton.visible&&$zoho.salesiq.floatbutton.visible("hide")}catch(e){}try{$zoho.salesiq.chatbutton&&$zoho.salesiq.chatbutton.visible&&$zoho.salesiq.chatbutton.visible("hide")}catch(e){}})` }} />
-        <script id="zsiqscript" defer src="https://salesiq.zohopublic.in/widget?wc=siq539386e56b76884f928a8048a569c499cd2f211af4903e74d1fcabc147a596a7" /> */}
       </body>
     </html>
   );
