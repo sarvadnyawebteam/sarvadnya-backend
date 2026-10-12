@@ -114,31 +114,33 @@ export default function AdminDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-3">
-        <div>
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-3xl font-black text-[#0f172a]">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-1">Real-time overview of your business infrastructure and content.</p>
+          <p className="text-slate-500 text-sm mt-1 truncate">Real-time overview of your business infrastructure and content.</p>
         </div>
         
-        {/* CHANGE: 2026-10-09 — owner: remake the header controls; the refresh control was
-            a tiny icon and is now a proper labelled button. Health panel wraps on mobile. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {/* CHANGE: 2026-10-12 — owner: the Refresh button kept wrapping to its own line.
+            The right-hand control group is now a single non-wrapping row (health chip +
+            Refresh side by side). Health chip labels collapse on very small screens so
+            the row never overflows. */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm flex items-center gap-x-2.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">System</span>
+              <span className="hidden sm:inline text-[9px] font-black text-slate-400 uppercase tracking-widest">System</span>
               <div className={`w-1.5 h-1.5 rounded-full ${health?.status === 'ok' ? 'bg-teal-500' : 'bg-red-500'} animate-pulse`}></div>
               <span className="text-xs font-bold text-slate-700">{loading ? 'Checking...' : health?.status === 'ok' ? 'Operational' : 'Error'}</span>
             </div>
-            <div className="hidden sm:block h-4 w-px bg-slate-100"></div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Database</span>
+            <div className="hidden md:block h-4 w-px bg-slate-100"></div>
+            <div className="hidden md:flex items-center gap-1.5">
+              <span className="hidden lg:inline text-[9px] font-black text-slate-400 uppercase tracking-widest">Database</span>
               <span className={`text-xs font-bold ${health?.mongodb === 'connected' ? 'text-teal-600' : 'text-red-600'}`}>
                 {loading ? '...' : health?.mongodb === 'connected' ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-            <div className="hidden sm:block h-4 w-px bg-slate-100"></div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Version</span>
+            <div className="hidden md:block h-4 w-px bg-slate-100"></div>
+            <div className="hidden md:flex items-center gap-1.5">
+              <span className="hidden lg:inline text-[9px] font-black text-slate-400 uppercase tracking-widest">Version</span>
               <span className="text-xs font-bold text-[#006569]">{health?.version || 'v1.1.390'}</span>
             </div>
           </div>
@@ -146,7 +148,7 @@ export default function AdminDashboard() {
             onClick={fetchData}
             disabled={refreshing}
             aria-label="Refresh dashboard data"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#006569] text-white text-xs font-bold shadow-sm shadow-teal-900/10 hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#006569] text-white text-xs font-bold shadow-sm shadow-teal-900/10 hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
             <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
@@ -164,18 +166,21 @@ export default function AdminDashboard() {
               <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{group.title}</h2>
               <div className="h-px flex-grow bg-slate-100"></div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-1.5">
+            {/* CHANGE: 2026-10-12 — owner: cards looked badly misplaced. Restored the clean
+                vertical layout (icon → value → label → short description) with proper spacing,
+                and abstracted the description to a single line (dashboard needs less detail). */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
               {group.items.map((item, iIdx) => (
                 <Link
                   key={iIdx}
                   href={item.href}
-                  className="group relative overflow-hidden bg-white px-3 py-2 rounded-lg border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-teal-100 transition-all"
+                  className="group relative overflow-hidden bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-teal-100 transition-all"
                 >
                   <div className={`absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-[0.05] transition-transform duration-500 group-hover:scale-150 ${item.color.split(' ')[0]}`}></div>
 
                   <div className="relative z-10 flex items-start justify-between">
-                    <div className={`p-2 rounded-md shadow-sm flex items-center justify-center w-8 h-6 ${item.color}`}>
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className={`p-2.5 rounded-lg shadow-sm ${item.color}`}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d={item.icon} />
                       </svg>
                     </div>
@@ -184,15 +189,11 @@ export default function AdminDashboard() {
                     </svg>
                   </div>
 
-                  <div className="relative z-10 mt-2 flex items-center gap-2">
-                    <p className="text-sm font-black text-[#0f172a] leading-none tabular-nums shrink-0">
-                      {loading ? <span className="text-slate-300">—</span> : item.value}
-                    </p>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold text-slate-700 line-clamp-1 leading-tight">{item.label}</p>
-                      <p className="mt-0.5 text-[9px] text-slate-400 leading-tight line-clamp-1">{item.desc}</p>
-                    </div>
-                  </div>
+                  <p className="relative z-10 mt-3 text-2xl font-black text-[#0f172a] leading-none tabular-nums">
+                    {loading ? <span className="text-slate-300">—</span> : item.value}
+                  </p>
+                  <p className="relative z-10 mt-1.5 text-xs font-bold text-slate-700 line-clamp-1">{item.label}</p>
+                  <p className="relative z-10 mt-0.5 text-[10px] text-slate-400 leading-tight line-clamp-1">{item.desc}</p>
                 </Link>
               ))}
             </div>
