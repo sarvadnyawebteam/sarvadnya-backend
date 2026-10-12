@@ -164,7 +164,7 @@ export default function AdminDashboard() {
               <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{group.title}</h2>
               <div className="h-px flex-grow bg-slate-100"></div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-1.5">
               {group.items.map((item, iIdx) => (
                 <Link
                   key={iIdx}
@@ -184,13 +184,15 @@ export default function AdminDashboard() {
                     </svg>
                   </div>
 
-                  <div className="relative z-10 mt-2 flex items-end justify-between">
-                    <p className="text-base font-black text-[#0f172a] leading-none tabular-nums">
+                  <div className="relative z-10 mt-2 flex items-center gap-2">
+                    <p className="text-sm font-black text-[#0f172a] leading-none tabular-nums shrink-0">
                       {loading ? <span className="text-slate-300">—</span> : item.value}
                     </p>
-                    <p className="text-[10px] font-bold text-slate-700 line-clamp-1 max-w-[60%] text-right">{item.label}</p>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-slate-700 line-clamp-1 leading-tight">{item.label}</p>
+                      <p className="mt-0.5 text-[9px] text-slate-400 leading-tight line-clamp-1">{item.desc}</p>
+                    </div>
                   </div>
-                  <p className="relative z-10 mt-0.5 text-[9px] text-slate-400 leading-tight line-clamp-2">{item.desc}</p>
                 </Link>
               ))}
             </div>
