@@ -20,7 +20,8 @@ export async function GET() {
       partners: 0,
       faq: 0,
       visitors: 0,
-      visitorsToday: 0,
+      // CHANGE: 2026-10-12 — owner: "visitors today" is now "Visitors Last 24 Hours".
+      visitorsLast24h: 0,
       orders: 0,
       ordersToday: 0,
       accounts: 0,
@@ -38,7 +39,10 @@ export async function GET() {
     stats.visitors = await visitorsCol.countDocuments();
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    stats.visitorsToday = await visitorsCol.countDocuments({ firstSeen: { $gte: startOfToday } });
+    // CHANGE: 2026-10-12 — owner: rename to "Visitors Last 24 Hours" and make the NUMBER
+    // match the label — a ROLLING 24h window instead of "since midnight".
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    stats.visitorsLast24h = await visitorsCol.countDocuments({ firstSeen: { $gte: last24h } });
 
     // Problem reports count
     const problemReportsCol = await getCollection('problem_reports');
