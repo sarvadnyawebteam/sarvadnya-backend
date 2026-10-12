@@ -73,13 +73,40 @@ export default function ChatsPage() {
 
   const close = useCallback(() => { setOpenId(null); setDetail(null) }, [])
 
-  // Esc closes the transcript modal.
+  // CHANGE: 2026-10-12 — owner: add a Delete button (per-row + in the modal). One shared
+  // confirm dialog serves both; confirming fires a hard DELETE on /api/admin/chats/[id].
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return
+    setDeleting(true)
+    try {
+      const r = await fetch(`/api/admin/chats/${pendingDelete.id}`, { method: 'DELETE' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d?.error || 'delete failed')
+      if (openId === pendingDelete.id) close()
+      setPendingDelete(null)
+      setError('')
+      await load()
+    } catch {
+      setError('Failed to delete that transcript. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }, [pendingDelete, openId, close, load])
+
+  // Esc closes the transcript modal, or cancels a pending delete.
   useEffect(() => {
-    if (!openId) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    if (!openId && !pendingDelete) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (pendingDelete) setPendingDelete(null)
+      else close()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openId, close])
+  }, [openId, pendingDelete, close])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -93,15 +120,15 @@ export default function ChatsPage() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Chat Transcripts</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-xl font-black tracking-tight text-slate-900">Chat Transcripts</h1>
+          <p className="text-xs text-slate-500 mt-1">
             Ask Sara conversations captured from the live site &middot; <span className="font-bold text-slate-700">{total}</span> total
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#006569] text-white text-sm font-bold shadow-sm hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 transition-all"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#006569] text-white text-xs font-bold shadow-sm hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 transition-all"
         >
           <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />
@@ -116,15 +143,15 @@ export default function ChatsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Filter by page, entry point, IP or message text…"
-          className="w-full max-w-md px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#006569]/30 focus:border-[#006569]"
+          className="w-full max-w-md px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#006569]/30 focus:border-[#006569]"
         />
       </div>
 
-      {error && <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-sm font-semibold text-red-700">{error}</div>}
+      {error && <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-red-50 border border-red-100 text-xs font-semibold text-red-700">{error}</div>}
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-xs">
+          <table className="min-w-full text-[11px]">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="text-left px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">Started</th>
@@ -149,15 +176,23 @@ export default function ChatsPage() {
                   <td className="px-4 py-2.5 font-semibold text-slate-800">{x.path || '—'}</td>
                   <td className="px-4 py-2.5 text-slate-500">{x.entryPoint || '—'}</td>
                   <td className="px-4 py-2.5 text-right font-bold text-slate-800 tabular-nums">{x.turnCount}</td>
-                  <td className="px-4 py-2.5 text-slate-500 max-w-[22rem] truncate">{x.lastMessage || '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-500 max-w-[20rem] truncate">{x.lastMessage || '—'}</td>
                   <td className="px-4 py-2.5 text-slate-500 font-mono whitespace-nowrap">{x.ip || '—'}</td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      onClick={() => openTranscript(x._id)}
-                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#006569] bg-teal-50 hover:bg-teal-100 transition-colors whitespace-nowrap"
-                    >
-                      View transcript
-                    </button>
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        onClick={() => openTranscript(x._id)}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-[#006569] bg-teal-50 hover:bg-teal-100 transition-colors whitespace-nowrap"
+                      >
+                        View transcript
+                      </button>
+                      <button
+                        onClick={() => setPendingDelete({ id: x._id, label: x.path || 'this transcript' })}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors whitespace-nowrap"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -170,21 +205,29 @@ export default function ChatsPage() {
         <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Chat transcript">
           <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={close} />
           <div className="relative z-10 w-full max-w-2xl max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
-            <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-100">
+            <div className="flex items-start justify-between gap-4 px-6 py-3.5 border-b border-slate-100">
               <div>
-                <h2 className="text-base font-black text-slate-900">Chat Transcript</h2>
-                {detail && <p className="text-[11px] text-slate-500 mt-0.5">{detail.path} &middot; {detail.entryPoint}</p>}
+                <h2 className="text-sm font-black text-slate-900">Chat Transcript</h2>
+                {detail && <p className="text-[10px] text-slate-500 mt-0.5">{detail.path} &middot; {detail.entryPoint}</p>}
               </div>
-              <button onClick={close} aria-label="Close transcript" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setPendingDelete({ id: openId, label: detail?.path || 'this transcript' })}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                >
+                  Delete
+                </button>
+                <button onClick={close} aria-label="Close transcript" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-y-auto px-6 py-4">
               {detailLoading && <p className="py-10 text-center text-slate-400">Loading transcript…</p>}
               {!detailLoading && detail && (
                 <>
-                  <dl className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4 text-[11px]">
+                  <dl className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4 text-[10px]">
                     <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Started</dt><dd className="text-slate-700 mt-0.5">{fmt(detail.startedAt)}</dd></div>
                     <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Last Active</dt><dd className="text-slate-700 mt-0.5">{fmt(detail.lastActiveAt)}</dd></div>
                     <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Ended</dt><dd className="text-slate-700 mt-0.5">{detail.endedReason || '—'}</dd></div>
@@ -197,7 +240,7 @@ export default function ChatsPage() {
                       const isUser = m.role === 'user'
                       return (
                         <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${isUser ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-800'}`}>
+                          <div className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-[11px] leading-relaxed ${isUser ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-800'}`}>
                             <p className="whitespace-pre-wrap break-words">{m.text}</p>
                             <div className={`mt-1 flex items-center gap-2 text-[9px] ${isUser ? 'text-teal-100' : 'text-slate-400'}`}>
                               <span className="font-bold uppercase tracking-wide">{isUser ? 'Visitor' : 'Sara'}</span>
@@ -214,6 +257,35 @@ export default function ChatsPage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE: 2026-10-12 — shared confirm for the row + modal Delete buttons. */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Confirm delete">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => { if (!deleting) setPendingDelete(null) }} />
+          <div className="relative z-10 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-100 p-5">
+            <h2 className="text-sm font-black text-slate-900">Delete this transcript?</h2>
+            <p className="text-[11px] text-slate-500 mt-1.5 break-words">
+              The conversation on <span className="font-semibold text-slate-700">{pendingDelete.label}</span> will be permanently removed. This cannot be undone.
+            </p>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setPendingDelete(null)}
+                disabled={deleting}
+                className="px-3.5 py-2 rounded-xl text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="px-3.5 py-2 rounded-xl text-[11px] font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-colors"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>
