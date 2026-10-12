@@ -164,18 +164,18 @@ export default function AdminDashboard() {
               <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{group.title}</h2>
               <div className="h-px flex-grow bg-slate-100"></div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-1.5">
               {group.items.map((item, iIdx) => (
                 <Link
                   key={iIdx}
                   href={item.href}
-                  className="group relative overflow-hidden bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-teal-100 transition-all"
+                  className="group relative overflow-hidden bg-white px-3 py-2 rounded-lg border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-teal-100 transition-all"
                 >
                   <div className={`absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-[0.05] transition-transform duration-500 group-hover:scale-150 ${item.color.split(' ')[0]}`}></div>
 
                   <div className="relative z-10 flex items-start justify-between">
-                    <div className={`p-2.5 rounded-lg shadow-sm ${item.color}`}>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className={`p-2 rounded-md shadow-sm flex items-center justify-center w-8 h-6 ${item.color}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d={item.icon} />
                       </svg>
                     </div>
@@ -184,11 +184,13 @@ export default function AdminDashboard() {
                     </svg>
                   </div>
 
-                  <p className="relative z-10 mt-3 text-lg font-black text-[#0f172a] leading-none tabular-nums">
-                    {loading ? <span className="text-slate-300">—</span> : item.value}
-                  </p>
-                  <p className="relative z-10 mt-1.5 text-xs font-bold text-slate-700 line-clamp-1">{item.label}</p>
-                  <p className="relative z-10 mt-0.5 text-[10px] text-slate-400 leading-tight line-clamp-2">{item.desc}</p>
+                  <div className="relative z-10 mt-2 flex items-end justify-between">
+                    <p className="text-base font-black text-[#0f172a] leading-none tabular-nums">
+                      {loading ? <span className="text-slate-300">—</span> : item.value}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-700 line-clamp-1 max-w-[60%] text-right">{item.label}</p>
+                  </div>
+                  <p className="relative z-10 mt-0.5 text-[9px] text-slate-400 leading-tight line-clamp-2">{item.desc}</p>
                 </Link>
               ))}
             </div>
