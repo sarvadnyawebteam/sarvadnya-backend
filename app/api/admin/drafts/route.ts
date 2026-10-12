@@ -4,14 +4,10 @@ import { verifyAdmin } from '@/lib/admin-auth'
 
 // CHANGE: 2026-10-09 — owner: form drafts must be visible. The /admin/drafts page has
 // always fetched /api/admin/drafts but NO list route existed (only /[id]), so the screen
-// silently showed nothing. This adds the list endpoint (masked IP + the captured fields)
-// and the full draft is fetched on demand from /api/admin/drafts/[id].
+// silently showed nothing. This adds the list endpoint (captured fields) and the full
+// draft is fetched on demand from /api/admin/drafts/[id].
+// CHANGE: 2026-10-12 — owner: do NOT mask the IP in the panel. (`maskIp()` removed.)
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-function maskIp(ip?: string): string {
-  if (!ip) return 'unknown'
-  return ip.replace(/(\d+\.\d+\.\d+)\.\d+/, '$1.***')
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,7 +36,7 @@ export async function GET(req: NextRequest) {
         status: x.status || '',
         createdAt: x.createdAt,
         lastActiveAt: x.lastActiveAt,
-        ip: maskIp(x.ip || x.meta?.ip),
+        ip: x.ip || x.meta?.ip || 'unknown',
         // Only the three form fields the owner cares about, never the whole bag.
         contact: [fields.name, fields.email, fields.phone].filter(Boolean).join(' | '),
       }

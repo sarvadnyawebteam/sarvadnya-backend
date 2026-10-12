@@ -5,14 +5,11 @@ import { verifyAdmin } from '@/lib/admin-auth'
 // CHANGE: 2026-10-09 — owner: the recorded chat history must actually be visible in the
 // panel. The old list shipped only the LAST message (`messages.slice(-1)`), so the page's
 // "Turns" column always read 0 or 1 and there was no way to open a conversation. This
-// list now returns a compact row (real `turnCount` + a truncated `lastMessage` preview,
-// masked IP); the FULL transcript is fetched on demand from /api/admin/chats/[id].
+// list now returns a compact row (real `turnCount` + a truncated `lastMessage` preview);
+// the FULL transcript is fetched on demand from /api/admin/chats/[id].
+// CHANGE: 2026-10-12 — owner: do NOT mask the IP in the panel. The full IP is shown so
+// the operator can identify/block abusers. (`maskIp()` removed from this route.)
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-function maskIp(ip?: string): string {
-  if (!ip) return 'unknown'
-  return ip.replace(/(\d+\.\d+\.\d+)\.\d+/, '$1.***')
-}
 
 function lastMessagePreview(messages: any): string {
   if (!Array.isArray(messages) || messages.length === 0) return ''
@@ -43,7 +40,7 @@ export async function GET(req: NextRequest) {
       entryPoint: x.entryPoint || '',
       path: x.path || '',
       endedReason: x.endedReason || '',
-      ip: maskIp(x.ip),
+      ip: x.ip || 'unknown',
       turnCount: Array.isArray(x.messages) ? x.messages.length : 0,
       lastMessage: lastMessagePreview(x.messages),
     }))

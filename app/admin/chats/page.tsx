@@ -124,16 +124,16 @@ export default function ChatsPage() {
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="text-left px-4 py-3 font-bold uppercase text-[10px] tracking-widest">Started</th>
-                <th className="text-left px-4 py-3 font-bold uppercase text-[10px] tracking-widest">Page</th>
-                <th className="text-left px-4 py-3 font-bold uppercase text-[10px] tracking-widest">Entry Point</th>
-                <th className="text-right px-4 py-3 font-bold uppercase text-[10px] tracking-widest">Msgs</th>
-                <th className="text-left px-4 py-3 font-bold uppercase text-[10px] tracking-widest">Last Message</th>
-                <th className="text-left px-4 py-3 font-bold uppercase text-[10px] tracking-widest">IP</th>
-                <th className="px-4 py-3"></th>
+                <th className="text-left px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">Started</th>
+                <th className="text-left px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">Page</th>
+                <th className="text-left px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">Entry Point</th>
+                <th className="text-right px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">Msgs</th>
+                <th className="text-left px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">Last Message</th>
+                <th className="text-left px-4 py-2.5 font-bold uppercase text-[10px] tracking-widest">IP</th>
+                <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
@@ -145,16 +145,16 @@ export default function ChatsPage() {
               )}
               {filtered.map((x) => (
                 <tr key={x._id} className="border-t border-slate-100 hover:bg-slate-50/70 transition-colors">
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-600">{fmt(x.startedAt)}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-800">{x.path || '—'}</td>
-                  <td className="px-4 py-3 text-slate-500">{x.entryPoint || '—'}</td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">{x.turnCount}</td>
-                  <td className="px-4 py-3 text-slate-500 max-w-[22rem] truncate">{x.lastMessage || '—'}</td>
-                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{x.ip}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-2.5 whitespace-nowrap text-slate-600">{fmt(x.startedAt)}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">{x.path || '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{x.entryPoint || '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-bold text-slate-800 tabular-nums">{x.turnCount}</td>
+                  <td className="px-4 py-2.5 text-slate-500 max-w-[22rem] truncate">{x.lastMessage || '—'}</td>
+                  <td className="px-4 py-2.5 text-slate-500 font-mono whitespace-nowrap">{x.ip || '—'}</td>
+                  <td className="px-4 py-2.5 text-right">
                     <button
                       onClick={() => openTranscript(x._id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#006569] bg-teal-50 hover:bg-teal-100 transition-colors"
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#006569] bg-teal-50 hover:bg-teal-100 transition-colors whitespace-nowrap"
                     >
                       View transcript
                     </button>
@@ -172,8 +172,8 @@ export default function ChatsPage() {
           <div className="relative z-10 w-full max-w-2xl max-h-[85vh] bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-slate-100">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Chat Transcript</h2>
-                {detail && <p className="text-xs text-slate-500 mt-0.5">{detail.path} &middot; {detail.entryPoint}</p>}
+                <h2 className="text-base font-black text-slate-900">Chat Transcript</h2>
+                {detail && <p className="text-[11px] text-slate-500 mt-0.5">{detail.path} &middot; {detail.entryPoint}</p>}
               </div>
               <button onClick={close} aria-label="Close transcript" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -184,22 +184,22 @@ export default function ChatsPage() {
               {detailLoading && <p className="py-10 text-center text-slate-400">Loading transcript…</p>}
               {!detailLoading && detail && (
                 <>
-                  <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5 text-xs">
-                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Started</dt><dd className="text-slate-700 mt-0.5">{fmt(detail.startedAt)}</dd></div>
-                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Last Active</dt><dd className="text-slate-700 mt-0.5">{fmt(detail.lastActiveAt)}</dd></div>
-                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Ended</dt><dd className="text-slate-700 mt-0.5">{detail.endedReason || '—'}</dd></div>
-                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">IP</dt><dd className="text-slate-700 mt-0.5">{detail.ip}</dd></div>
-                    <div className="col-span-2"><dt className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Session</dt><dd className="text-slate-700 mt-0.5 break-all">{detail.sessionId || '—'}</dd></div>
+                  <dl className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-4 text-[11px]">
+                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Started</dt><dd className="text-slate-700 mt-0.5">{fmt(detail.startedAt)}</dd></div>
+                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Last Active</dt><dd className="text-slate-700 mt-0.5">{fmt(detail.lastActiveAt)}</dd></div>
+                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Ended</dt><dd className="text-slate-700 mt-0.5">{detail.endedReason || '—'}</dd></div>
+                    <div><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">IP</dt><dd className="text-slate-700 mt-0.5 font-mono">{detail.ip || '—'}</dd></div>
+                    <div className="col-span-2"><dt className="text-slate-400 font-bold uppercase tracking-widest text-[9px]">Session</dt><dd className="text-slate-700 mt-0.5 break-all font-mono">{detail.sessionId || '—'}</dd></div>
                   </dl>
 
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {(detail.messages || []).map((m, i) => {
                       const isUser = m.role === 'user'
                       return (
                         <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${isUser ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-800'}`}>
+                          <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${isUser ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-800'}`}>
                             <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                            <div className={`mt-1 flex items-center gap-2 text-[10px] ${isUser ? 'text-teal-100' : 'text-slate-400'}`}>
+                            <div className={`mt-1 flex items-center gap-2 text-[9px] ${isUser ? 'text-teal-100' : 'text-slate-400'}`}>
                               <span className="font-bold uppercase tracking-wide">{isUser ? 'Visitor' : 'Sara'}</span>
                               {m.ts && <span>{fmt(m.ts)}</span>}
                               {m.topic && <span className="px-1.5 py-0.5 rounded bg-black/10">{m.topic}</span>}
@@ -209,7 +209,7 @@ export default function ChatsPage() {
                       )
                     })}
                     {(detail.messages || []).length === 0 && (
-                      <p className="py-6 text-center text-slate-400 text-sm">No messages recorded in this session.</p>
+                      <p className="py-6 text-center text-slate-400 text-xs">No messages recorded in this session.</p>
                     )}
                   </div>
                 </>
