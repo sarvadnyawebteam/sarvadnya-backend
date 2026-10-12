@@ -114,7 +114,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-5">
+      <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-black text-[#0f172a]">Dashboard</h1>
           <p className="text-slate-500 text-sm mt-1">Real-time overview of your business infrastructure and content.</p>
@@ -123,32 +123,32 @@ export default function AdminDashboard() {
         {/* CHANGE: 2026-10-09 — owner: remake the header controls; the refresh control was
             a tiny icon and is now a proper labelled button. Health panel wraps on mobile. */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-white px-5 py-3.5 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-x-5 gap-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">System</span>
-              <div className={`w-2 h-2 rounded-full ${health?.status === 'ok' ? 'bg-teal-500' : 'bg-red-500'} animate-pulse`}></div>
-              <span className="text-sm font-bold text-slate-700">{loading ? 'Checking...' : health?.status === 'ok' ? 'Operational' : 'Error'}</span>
+          <div className="bg-white px-3.5 py-2.5 rounded-xl border border-slate-100 shadow-sm flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">System</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${health?.status === 'ok' ? 'bg-teal-500' : 'bg-red-500'} animate-pulse`}></div>
+              <span className="text-xs font-bold text-slate-700">{loading ? 'Checking...' : health?.status === 'ok' ? 'Operational' : 'Error'}</span>
             </div>
-            <div className="hidden sm:block h-6 w-px bg-slate-100"></div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database</span>
-              <span className={`text-sm font-bold ${health?.mongodb === 'connected' ? 'text-teal-600' : 'text-red-600'}`}>
+            <div className="hidden sm:block h-4 w-px bg-slate-100"></div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Database</span>
+              <span className={`text-xs font-bold ${health?.mongodb === 'connected' ? 'text-teal-600' : 'text-red-600'}`}>
                 {loading ? '...' : health?.mongodb === 'connected' ? 'Connected' : 'Disconnected'}
               </span>
             </div>
-            <div className="hidden sm:block h-6 w-px bg-slate-100"></div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Version</span>
-              <span className="text-sm font-bold text-[#006569]">{health?.version || 'v1.1.390'}</span>
+            <div className="hidden sm:block h-4 w-px bg-slate-100"></div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Version</span>
+              <span className="text-xs font-bold text-[#006569]">{health?.version || 'v1.1.390'}</span>
             </div>
           </div>
           <button
             onClick={fetchData}
             disabled={refreshing}
             aria-label="Refresh dashboard data"
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#006569] text-white text-sm font-bold shadow-sm shadow-teal-900/10 hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#006569] text-white text-xs font-bold shadow-sm shadow-teal-900/10 hover:bg-[#045A57] active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
           >
-            <svg className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path>
               <path d="M21 3v5h-5"></path>
             </svg>
@@ -157,40 +157,38 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <div className="space-y-8">
+      <div className="space-y-5">
         {statGroups.map((group, gIdx) => (
           <section key={gIdx}>
-            <div className="flex items-center gap-3 mb-5">
-              <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{group.title}</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">{group.title}</h2>
               <div className="h-px flex-grow bg-slate-100"></div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* CHANGE: 2026-10-09 — owner: remake the metric cards. Larger icon tile,
-                  prominent value, full (non-truncated) label/description, clearer hover. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5">
               {group.items.map((item, iIdx) => (
                 <Link
                   key={iIdx}
                   href={item.href}
-                  className="group relative overflow-hidden bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-teal-100 transition-all"
+                  className="group relative overflow-hidden bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-teal-100 transition-all"
                 >
-                  <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-[0.07] transition-transform duration-500 group-hover:scale-150 ${item.color.split(' ')[0]}`}></div>
+                  <div className={`absolute -top-6 -right-6 w-16 h-16 rounded-full opacity-[0.05] transition-transform duration-500 group-hover:scale-150 ${item.color.split(' ')[0]}`}></div>
 
                   <div className="relative z-10 flex items-start justify-between">
-                    <div className={`p-3 rounded-2xl shadow-sm ${item.color}`}>
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className={`p-2.5 rounded-lg shadow-sm ${item.color}`}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d={item.icon} />
                       </svg>
                     </div>
-                    <svg className="w-4 h-4 text-slate-300 group-hover:text-[#006569] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-3 h-3 text-slate-300 group-hover:text-[#006569] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
 
-                  <p className="relative z-10 mt-4 text-3xl font-black text-[#0f172a] leading-none tabular-nums">
+                  <p className="relative z-10 mt-3 text-lg font-black text-[#0f172a] leading-none tabular-nums">
                     {loading ? <span className="text-slate-300">—</span> : item.value}
                   </p>
-                  <p className="relative z-10 mt-2 text-sm font-bold text-slate-700">{item.label}</p>
-                  <p className="relative z-10 mt-1 text-xs text-slate-400 leading-snug">{item.desc}</p>
+                  <p className="relative z-10 mt-1.5 text-xs font-bold text-slate-700 line-clamp-1">{item.label}</p>
+                  <p className="relative z-10 mt-0.5 text-[10px] text-slate-400 leading-tight line-clamp-2">{item.desc}</p>
                 </Link>
               ))}
             </div>
