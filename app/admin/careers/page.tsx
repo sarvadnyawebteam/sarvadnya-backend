@@ -6,6 +6,8 @@ import { Job } from '@/lib/jobs';
 // Careers page as a third tab (Job Listings | Applications | Accounts). The
 // standalone /admin/accounts page + sidebar entry were removed the same day.
 import AccountsTab from './accounts-tab';
+// CHANGE: 2026-10-16 — careers referral system: fourth tab reports referral sign-ups.
+import ReferralsTab from './referrals-tab';
 
 type Application = {
   _id: string;
@@ -20,7 +22,7 @@ type Application = {
 };
 
 export default function AdminCareers() {
-  const [activeTab, setActiveTab] = useState<'listings' | 'applications' | 'accounts'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'applications' | 'accounts' | 'referrals'>('listings');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,6 +159,13 @@ export default function AdminCareers() {
           className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'accounts' ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
         >
           Accounts
+        </button>
+        {/* CHANGE: 2026-10-16 — careers referral system: fourth tab, referral reporting. */}
+        <button 
+          onClick={() => setActiveTab('referrals')}
+          className={`px-6 py-2 rounded-xl font-bold transition-all ${activeTab === 'referrals' ? 'bg-[#006569] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+        >
+          Referrals
         </button>
       </div>
 
@@ -302,6 +311,9 @@ export default function AdminCareers() {
         // CHANGE: 2026-10-07 — owner follow-up: merged candidate-accounts admin
         // (was the standalone /admin/accounts page, deleted the same day).
         <AccountsTab />
+      ) : activeTab === 'referrals' ? (
+        // CHANGE: 2026-10-16 — careers referral system: referred-account reporting.
+        <ReferralsTab />
       ) : (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">

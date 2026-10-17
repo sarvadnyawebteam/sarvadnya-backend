@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCareersUsersCollection, hashPassword } from '@/lib/careers-auth';
+// CHANGE: 2026-10-16 — ported from the public repo: careers referral system. Admin-created
+// accounts get their own unique referral code too, exactly like a public /careers signup, so
+// every candidate account is referrable. The lib is the SAME pure-ESM module the frontend uses.
+import { generateUniqueReferralCode } from '@/lib/careers-referral.mjs';
 
 // CHANGE: 2026-10-07 — Task 4: career candidate Accounts list, ported from the
 // public repo's route that was removed in Task 1 (commit 1112177 added it THERE
@@ -25,6 +29,11 @@ function safeUser(u: any) {
     phone: u.phone ?? null,
     resumeUrl: u.resumeUrl ?? null,
     resumeName: u.resumeName ?? null,
+    // CHANGE: 2026-10-16 — referral fields (read-only in this panel: attribution is fixed at
+    // signup). `referredBy` is the CODE of the account that referred this candidate.
+    referralCode: u.referralCode ?? null,
+    referredBy: u.referredBy ?? null,
+    referredAt: u.referredAt ?? null,
     lastLoginAt: u.lastLoginAt ?? null,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
@@ -40,7 +49,9 @@ export async function GET(request: NextRequest) {
     const filter: Record<string, unknown> = {};
     if (q) {
       const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      filter.$or = [{ fullName: rx }, { email: rx }, { phone: rx }];
+      // CHANGE: 2026-10-16 — referral codes are searchable too (find a candidate by their own
+      // code, or find everyone referred by a code).
+      filter.$or = [{ fullName: rx }, { email: rx }, { phone: rx }, { referralCode: rx }, { referredBy: rx }];
     }
 
     const allUsers = await users.find(filter).sort({ createdAt: -1 }).toArray();
@@ -80,11 +91,17 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     const passwordHash = hashPassword(password);
+    // CHANGE: 2026-10-16 — assign the new account its own unique referral code, mirroring the
+    // public signup route (collision-checked against the DB).
+    const referralCode = await generateUniqueReferralCode(async (code) =>
+      (await users.findOne({ referralCode: code }, { projection: { _id: 1 } })) !== null
+    );
     const result = await users.insertOne({
       email,
       passwordHash,
       fullName: fullName || '',
       phone: phone || '',
+      referralCode,
       createdAt: now,
       updatedAt: now,
     });

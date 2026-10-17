@@ -20,6 +20,10 @@ type Account = {
   phone: string | null;
   resumeUrl: string | null;
   resumeName: string | null;
+  // CHANGE: 2026-10-16 — referral fields exposed by the users route (read-only here).
+  referralCode: string | null;
+  referredBy: string | null;
+  referredAt: string | null;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -300,6 +304,26 @@ export default function AccountsTab() {
                 Changing the email moves the login identity. A value already used by another account is rejected.
               </p>
             </div>
+            {/* CHANGE: 2026-10-16 — referral facts are read-only (attribution is fixed at signup;
+                the PATCH endpoint does not accept them). */}
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Own Referral Code</div>
+                <div className="font-mono text-sm font-black tracking-widest text-[#006569]">
+                  {editing.referralCode || <span className="font-sans text-slate-400">Not assigned</span>}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Referred By</div>
+                <div className="text-sm font-bold text-slate-600">
+                  {editing.referredBy ? (
+                    <span className="font-mono tracking-widest text-[#006569]">{editing.referredBy}</span>
+                  ) : (
+                    <span className="text-slate-400">Direct signup</span>
+                  )}
+                </div>
+              </div>
+            </div>
             <div className="md:col-span-2 flex gap-4">
               <button
                 type="submit"
@@ -344,6 +368,12 @@ export default function AccountsTab() {
                       <div className="text-sm font-bold text-[#0f172a]">{a.fullName || <span className="text-slate-400">—</span>}</div>
                       {a.lastLoginAt && (
                         <div className="text-[10px] text-slate-400">Last login {new Date(a.lastLoginAt).toLocaleString()}</div>
+                      )}
+                      {/* CHANGE: 2026-10-16 — flag referral-added accounts right in the list. */}
+                      {a.referredBy && (
+                        <div className="mt-0.5 text-[10px] font-bold text-[#006569]">
+                          Referred via <span className="font-mono tracking-widest">{a.referredBy}</span>
+                        </div>
                       )}
                     </td>
                     <td className="p-4 text-sm font-medium text-slate-600">{a.email}</td>

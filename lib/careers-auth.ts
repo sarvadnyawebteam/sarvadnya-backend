@@ -13,6 +13,12 @@ export interface CareersUser {
   phone?: string;
   resumeUrl?: string;
   resumeName?: string;
+  // CHANGE: 2026-10-16 — ported from the public repo: careers referral system.
+  // `referralCode` = the user's OWN unique 8-char uppercase code (lib/careers-referral.mjs);
+  // `referredBy`/`referredAt` record who referred them at signup (fixed, never editable).
+  referralCode?: string;
+  referredBy?: string;
+  referredAt?: Date;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
