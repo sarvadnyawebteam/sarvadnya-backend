@@ -99,6 +99,44 @@ check('lib/admin-guard.ts exists (SP-4 guard: auth + rate limit + content gate)'
 const mwText = existsSync(mwPath) ? readFileSync(mwPath, 'utf-8') : '';
 check('middleware.ts imports the guard from lib/admin-guard.ts', /from ['"]\.\/lib\/admin-guard\.ts['"]/.test(mwText));
 
+// CHANGE: 2026-10-17 — ported the public repo's write-route checks (its §5). Before this
+// session the nested repo had drifted on public-write-route security: tss-renewal and
+// problem-reports had NO per-IP limiter AND no ignore-IP gate (each writes to a production
+// collection and fires a real Resend email), and contact/email/submit had a limiter but no
+// ignore gate. All four were fixed here; these checks stop the gap reopening. The nested
+// repo has no cart routes (that is a frontend-only feature), so the list is shorter.
+const writeRoutes = [
+  'app/api/email/submit/route.ts',
+  'app/api/contact/route.ts',
+  'app/api/tss-renewal/route.ts',
+  'app/api/problem-reports/route.ts',
+  'app/api/upload/chunk/route.ts',
+  'app/api/auth/careers/signup/route.ts',
+  'app/api/auth/careers/profile/route.ts',
+];
+const unguarded = writeRoutes.filter((p) => {
+  const file = resolve(root, p);
+  return !existsSync(file) || !/ateLimit/.test(readFileSync(file, 'utf-8'));
+});
+check(
+  `public write routes are rate-limited${unguarded.length ? ` (missing: ${unguarded.join(', ')})` : ''}`,
+  unguarded.length === 0
+);
+// Every public route that saves to the production DB and/or sends a real email must ALSO
+// honour the ignore list, so local/dev traffic never creates genuine records or mail.
+// upload/chunk is deliberately excluded: it only writes a temp blob (the resume REGISTER
+// route applies the ignore gate), mirroring the public repo.
+const ignored = writeRoutes
+  .filter((p) => p !== 'app/api/upload/chunk/route.ts')
+  .filter((p) => {
+    const file = resolve(root, p);
+    return !existsSync(file) || !/isIgnoredRequest/.test(readFileSync(file, 'utf-8'));
+  });
+check(
+  `public write routes honour the ignore list${ignored.length ? ` (missing: ${ignored.join(', ')})` : ''}`,
+  ignored.length === 0
+);
+
 // ─── 6. MongoDB Config Check ──────────────────────────────────
 results.push('\n🗄️  Database Configuration');
 const mongoLib = resolve(root, 'lib', 'mongodb.ts');

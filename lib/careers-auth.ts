@@ -19,6 +19,16 @@ export interface CareersUser {
   referralCode?: string;
   referredBy?: string;
   referredAt?: Date;
+  // CHANGE: 2026-10-17 — candidate profile details (ported from the public repo). Stored on the
+  // account so the post-login "Personal Details" section can show/lock them and the job
+  // application form can autofill. All optional; `age` is a number (validated 14-100 server-side).
+  gender?: string;
+  age?: number;
+  qualification?: string;
+  skills?: string;
+  experience?: string;
+  experienceDetails?: string;
+  city?: string;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;

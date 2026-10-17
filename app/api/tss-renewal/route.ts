@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { saveTssRenewal } from '@/lib/mongodb-utils';
 import { sendEmailDirect } from '@/lib/email-queue';
-import { getRequestMeta, lookupGeo, maskIp, isValidSessionId, markConversion } from '@/lib/visitors';
+import { getRequestMeta, lookupGeo, maskIp, isValidSessionId, markConversion, isIgnoredRequest, visitorLog, getClientIp } from '@/lib/visitors';
 import type { GeoInfo } from '@/lib/visitors';
+// CHANGE: 2026-10-17 — per-IP rate limit (ported from the public repo, which added it on
+// 2026-10-08). This route writes to the production `tss_renewals` collection AND sends a real
+// internal email, but had no limiter at all.
+import { createRateLimiter } from '@/lib/rate-limit';
+
+const rateLimiter = createRateLimiter(Number(process.env.TSS_RENEWAL_RATE_LIMIT || 20), 60_000);
 
 function sanitize(str: string) {
   if (typeof str !== 'string') return '';
@@ -10,6 +16,14 @@ function sanitize(str: string) {
 }
 
 export async function POST(request: Request) {
+  // CHANGE: 2026-10-17 — rate limit BEFORE parsing the body.
+  const limit = rateLimiter.check(getClientIp(request));
+  if (limit.limited) {
+    return NextResponse.json(
+      { error: 'Too many requests, please slow down.' },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
+    );
+  }
   try {
     const rawData = await request.json();
 
@@ -31,6 +45,15 @@ export async function POST(request: Request) {
 
     // Passive enrichment: IP, UA, geo (cache-first) + browsing session id.
     const meta = getRequestMeta(request);
+
+    // CHANGE: 2026-10-17 — ignore-list gate (ported from the public repo, added there 2026-09-30).
+    // Writes to the PRODUCTION `tss_renewals` collection and sends a REAL email; without this a
+    // dev/test request created genuine renewal records and real mail.
+    if (isIgnoredRequest(request)) {
+      visitorLog('warn', 'ignored ip — renewal not saved, no email sent', { ip: maskIp(meta.ip) });
+      return NextResponse.json({ message: 'TSS renewal request received', saved: false, ignored: true });
+    }
+
     const sessionId = isValidSessionId(rawData.sessionId) ? String(rawData.sessionId) : '';
     let geo: GeoInfo | null = null;
     if (meta.secGpc !== true) {

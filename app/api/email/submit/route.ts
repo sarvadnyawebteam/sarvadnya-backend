@@ -10,6 +10,7 @@ import {
   markConversion,
   lookupReverseDns,
   visitorLog,
+  isIgnoredRequest,
 } from '@/lib/visitors';
 import type { GeoInfo } from '@/lib/visitors';
 
@@ -110,6 +111,18 @@ export async function POST(request: Request) {
     // Passive lead enrichment: capture IP, UA, geo (cache-first), UTM params,
     // and the browsing session id so the lead can be tied back to its visitor record.
     const meta = getRequestMeta(request);
+
+    // CHANGE: 2026-10-17 — ignore-list gate (ported from the public repo, added there 2026-09-30).
+    // Writes to the PRODUCTION `form_submissions` collection and fires a REAL Resend email; a
+    // dev/test request otherwise left genuine lead records and real mail in the team inbox.
+    if (isIgnoredRequest(request)) {
+      visitorLog('warn', 'ignored ip — submission not saved, no email sent', {
+        ip: maskIp(meta.ip),
+        destination,
+      });
+      return NextResponse.json({ ok: true, saved: false, ignored: true });
+    }
+
     const sessionId = isValidSessionId(rawData.sessionId) ? String(rawData.sessionId) : '';
     const { geo } = await lookupGeo(meta.ip);
 
