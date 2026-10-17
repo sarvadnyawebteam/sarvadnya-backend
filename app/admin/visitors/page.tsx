@@ -29,9 +29,25 @@ type Device = {
   engine?: string;
 } | null;
 
-type Visitor = {
+// CHANGE: 2026-10-17 — one row is now a UNIQUE VISITOR (many session documents grouped
+// by IP + device signature), so the row carries the merged totals plus the session list.
+type SessionRef = {
   _id: string;
   sessionId: string;
+  firstSeen: string;
+  lastSeen: string;
+  visitCount: number;
+  pageViews: number;
+  lastPath: string;
+};
+
+type Visitor = {
+  _id: string;
+  visitorKey: string;
+  sessionCount: number;
+  latestSessionId: string;
+  sessionIds: string[];
+  sessions: SessionRef[];
   firstSeen: string;
   lastSeen: string;
   visitCount: number;
@@ -65,9 +81,12 @@ type Meta = {
   activeToday: number;
   activeWeek: number;
   newToday: number;
+  botVisitors: number;
   topCountries: { country: string; count: number }[];
   deviceBreakdown: { device: string; count: number }[];
 };
+
+type Scope = 'humans' | 'bots';
 
 const PAGE_SIZES = [10, 25, 50];
 const MAX_VISIBLE_PAGES = 5;
@@ -117,6 +136,10 @@ function deviceLabel(d: Device): string {
   return `${d.browser} · ${d.os}${extra}`;
 }
 
+function isBot(v: Visitor): boolean {
+  return v.device?.type === 'bot';
+}
+
 // CHANGE: 2026-08-29 — Short session id shown as the small "visitor name" in the
 // table (row clicks open the full detail). CSV cells escaped for safe output.
 function shortSessionId(id: string): string {
@@ -136,6 +159,8 @@ export default function AdminVisitors() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // CHANGE: 2026-10-17 — Humans | Bots are separate populations (owner: bots separated).
+  const [scope, setScope] = useState<Scope>('humans');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
     key: 'lastSeen',
     direction: 'desc'
@@ -154,7 +179,7 @@ export default function AdminVisitors() {
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [debouncedSearch, filterCountry, filterDevice]);
+  }, [debouncedSearch, filterCountry, filterDevice, scope]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -165,6 +190,7 @@ export default function AdminVisitors() {
         limit: String(pagination.limit),
         sortBy: sortConfig.key,
         sortDir: sortConfig.direction,
+        scope,
       });
       if (filterCountry !== 'all') params.set('country', filterCountry);
       if (filterDevice !== 'all') params.set('device', filterDevice);
@@ -183,24 +209,48 @@ export default function AdminVisitors() {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.limit, sortConfig.key, sortConfig.direction, filterCountry, filterDevice, debouncedSearch]);
+  }, [pagination.page, pagination.limit, sortConfig.key, sortConfig.direction, filterCountry, filterDevice, debouncedSearch, scope]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this visitor session record?')) return;
+  // CHANGE: 2026-10-17 — deleting a row removes the visitor AND every session it was
+  // grouped from (the API takes the whole session id list).
+  const handleDeleteVisitor = async (v: Visitor) => {
+    const n = v.sessionCount || 1;
+    const label = n > 1 ? `this visitor and all ${n} of their sessions` : 'this visitor';
+    if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
     try {
-      const res = await fetch(`/api/admin/visitors?id=${id}`, { method: 'DELETE' });
+      const ids = v.sessionIds && v.sessionIds.length > 0 ? v.sessionIds : [v._id];
+      const res = await fetch(`/api/admin/visitors?ids=${encodeURIComponent(ids.join(','))}`, {
+        method: 'DELETE',
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Delete failed (${res.status})`);
-      if (selectedItem?._id === id) setSelectedItem(null);
+      if (selectedItem?._id === v._id) setSelectedItem(null);
       setError(null);
       await fetchData();
     } catch (err) {
       console.error('Error deleting visitor:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete visitor.');
+    }
+  };
+
+  // Remove a single session of a unique visitor (used inside the detail modal).
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Delete this session record?')) return;
+    try {
+      const res = await fetch(`/api/admin/visitors?id=${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Delete failed (${res.status})`);
+      setError(null);
+      await fetchData();
+    } catch (err) {
+      console.error('Error deleting session:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete session.');
     }
   };
 
@@ -224,27 +274,36 @@ export default function AdminVisitors() {
     setPagination({ page: 1, limit, total: pagination.total, totalPages: 1 });
   };
 
+  const switchScope = (next: Scope) => {
+    if (next === scope) return;
+    setScope(next);
+    setFilterDevice('all');
+    setSelectedItem(null);
+  };
+
   // CHANGE: 2026-08-29 — Export the current (filtered/search) rows as CSV.
   // Client-side build from the already-fetched visitors array; full IP included.
+  // CHANGE: 2026-10-17 — rows are unique visitors, so Sessions + Visitor type are added.
   const handleExportCsv = () => {
     const rows = visitors.map((v) => {
-      const name = shortSessionId(v.sessionId);
+      const name = shortSessionId(v.latestSessionId);
       const lastSeen = v.lastSeen ? formatDateTime(v.lastSeen) : '';
       const country = v.geo ? [v.geo.city, v.geo.region, v.geo.country].filter(Boolean).join(', ') : '';
       const isp = v.geo?.isp || '';
       const device = deviceLabel(v.device);
       const ip = v.ip || '';
-      return [name, lastSeen, String(v.visitCount), country, isp, device, ip];
+      const type = isBot(v) ? 'bot' : 'human';
+      return [name, lastSeen, String(v.visitCount), String(v.sessionCount), country, isp, device, type, ip];
     });
 
-    const header = ['Name', 'Last Seen', 'Visits', 'Country', 'ISP', 'Device', 'IP'];
+    const header = ['Visitor', 'Last Seen', 'Visits', 'Sessions', 'Country', 'ISP', 'Device', 'Type', 'IP'];
     const csv = [header.join(','), ...rows.map((r) => r.map(csvCell).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `visitors-${stamp}.csv`;
+    a.download = `visitors-${scope}-${stamp}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -269,6 +328,10 @@ export default function AdminVisitors() {
   const from = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const to = Math.min(pagination.page * pagination.limit, pagination.total);
 
+  const deviceOptions = scope === 'bots'
+    ? ['bot']
+    : ['mobile', 'tablet', 'desktop', 'unknown'];
+
   const sortHeader = (key: string, label: string) => (
     <th
       className="p-3 w-[100px] text-[10px] font-bold uppercase tracking-widest text-slate-500 cursor-pointer hover:text-slate-900 transition-colors"
@@ -283,7 +346,9 @@ export default function AdminVisitors() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Visitor Data</h1>
-          <p className="text-slate-500 text-sm mt-1 font-medium">Passive identification of browsing sessions (IP, geo, device).</p>
+          <p className="text-slate-500 text-sm mt-1 font-medium">
+            Unique visitors (IP + device), with every session and visit rolled into one row.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -317,11 +382,39 @@ export default function AdminVisitors() {
         </div>
       )}
 
-      {/* Stat cards */}
+      {/* CHANGE: 2026-10-17 — Humans / Bots split. Bots never touch the stat cards below. */}
+      <div className="mb-6 inline-flex rounded-none border border-slate-200 bg-white p-1">
+        {([
+          { key: 'humans' as Scope, label: 'Visitors', count: meta?.total },
+          { key: 'bots' as Scope, label: 'Bots', count: meta?.botVisitors },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => switchScope(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
+              scope === t.key ? 'bg-[#006569] text-white' : 'text-slate-500 hover:text-[#006569]'
+            }`}
+          >
+            {t.label}
+            {typeof t.count === 'number' && (
+              <span
+                className={`min-w-[22px] px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${
+                  scope === t.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Stat cards — humans only */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white p-5 border border-slate-100 shadow-sm">
           <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Total Visitors</p>
           <p className="text-3xl font-black text-slate-900">{loading ? '…' : meta?.total ?? '—'}</p>
+          <p className="text-[10px] text-slate-400 font-semibold mt-1">bots excluded</p>
         </div>
         <div className="bg-white p-5 border border-slate-100 shadow-sm">
           <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Active (24h)</p>
@@ -365,15 +458,15 @@ export default function AdminVisitors() {
             onChange={(e) => setFilterDevice(e.target.value)}
             className="bg-slate-50 border border-slate-100 rounded-none px-3 py-2 text-xs font-semibold text-slate-600 focus:ring-2 focus:ring-[#006569]"
           >
-            <option value="all">All Devices</option>
-            {['mobile', 'tablet', 'desktop', 'bot', 'unknown'].map((d) => (
+            <option value="all">{scope === 'bots' ? 'All Bots' : 'All Devices'}</option>
+            {deviceOptions.map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search country / city / ISP / IP / page…"
+            placeholder="Search country / city / ISP / IP / device…"
             className="bg-slate-50 border border-slate-100 rounded-none px-3 py-2 text-xs font-semibold text-slate-600 focus:ring-2 focus:ring-[#006569] w-full sm:w-64"
           />
         </div>
@@ -397,7 +490,7 @@ export default function AdminVisitors() {
           <table className="w-full text-left border-collapse table-fixed min-w-[1080px]">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-200">
-                <th className="p-3 w-[120px] text-[10px] font-bold uppercase tracking-widest text-slate-500">Name</th>
+                <th className="p-3 w-[120px] text-[10px] font-bold uppercase tracking-widest text-slate-500">Visitor</th>
                 {sortHeader('lastSeen', 'Last Seen')}
                 {sortHeader('visitCount', 'Visits')}
                 <th className="p-3 w-[130px] text-[10px] font-bold uppercase tracking-widest text-slate-500">Country</th>
@@ -418,12 +511,17 @@ export default function AdminVisitors() {
                     onClick={() => setSelectedItem(v)}
                   >
                     <td className="p-3 whitespace-nowrap">
-                      <p className="text-[11px] font-bold text-slate-700 truncate max-w-[110px]">{shortSessionId(v.sessionId)}</p>
-                      <span className="text-[9px] text-slate-400 font-medium truncate block max-w-[110px]">{shortSessionId(v._id)}</span>
+                      <p className="text-[11px] font-bold text-slate-700 truncate max-w-[110px] font-mono">{shortSessionId(v.latestSessionId)}</p>
+                      <span className="text-[9px] text-slate-400 font-medium truncate block max-w-[110px]">
+                        {v.sessionCount} session{v.sessionCount === 1 ? '' : 's'}
+                      </span>
                     </td>
                     <td className="p-3 text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {formatDateTime(v.lastSeen)}
+                        {isBot(v) && (
+                          <span className="px-1.5 py-0.5 rounded-none text-[8px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">BOT</span>
+                        )}
                         {v.gpcRespected && (
                           <span className="px-1.5 py-0.5 rounded-none text-[8px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-100">GPC</span>
                         )}
@@ -448,7 +546,7 @@ export default function AdminVisitors() {
                     </td>
                     <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
-                        onClick={() => handleDelete(v._id)}
+                        onClick={() => handleDeleteVisitor(v)}
                         disabled={loading}
                         className="p-2 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50"
                         title="Delete Visitor"
@@ -464,7 +562,9 @@ export default function AdminVisitors() {
                     <div className="text-slate-300 mb-2">
                       <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
-                    <p className="text-slate-400 font-semibold italic">No visitor sessions found.</p>
+                    <p className="text-slate-400 font-semibold italic">
+                      {scope === 'bots' ? 'No bot activity found.' : 'No visitors found.'}
+                    </p>
                   </td>
                 </tr>
               )}
@@ -478,7 +578,8 @@ export default function AdminVisitors() {
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 border border-slate-100 shadow-sm">
           <p className="text-[11px] font-semibold text-slate-500">
             Showing <span className="text-slate-900 font-bold">{from}–{to}</span> of{' '}
-            <span className="text-slate-900 font-bold">{pagination.total}</span> visitors
+            <span className="text-slate-900 font-bold">{pagination.total}</span>{' '}
+            {scope === 'bots' ? 'bots' : 'unique visitors'}
           </p>
           <div className="flex items-center gap-1.5">
             <button
@@ -533,8 +634,10 @@ export default function AdminVisitors() {
                   </svg>
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#006569] block leading-none mb-1">Visitor Session</span>
-                  <h2 className="text-lg font-bold text-slate-900 tracking-tight leading-none truncate font-mono">{selectedItem.sessionId}</h2>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#006569] block leading-none mb-1">
+                    Unique Visitor{isBot(selectedItem) ? ' · Bot' : ''}
+                  </span>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight leading-none truncate font-mono">{selectedItem.ip || 'Unknown IP'}</h2>
                 </div>
               </div>
               <button
@@ -546,15 +649,19 @@ export default function AdminVisitors() {
             </div>
 
             <div className="p-5 space-y-5 overflow-y-auto grow">
-              {/* IP + identity strip */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* IP + device signature + session count */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="bg-slate-50 px-3 py-2.5 border border-slate-200">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">IP Address (full)</p>
                   <p className="text-sm font-bold text-slate-900 tabular-nums font-mono break-all">{selectedItem.ip || '—'}</p>
                 </div>
                 <div className="bg-slate-50 px-3 py-2.5 border border-slate-200">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Entry Page</p>
-                  <p className="text-sm font-semibold text-[#006569] truncate">{selectedItem.entryPath || '/'}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Device Signature</p>
+                  <p className="text-sm font-semibold text-slate-700 truncate">{deviceLabel(selectedItem.device)}</p>
+                </div>
+                <div className="bg-slate-50 px-3 py-2.5 border border-slate-200">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Sessions Merged</p>
+                  <p className="text-sm font-black text-[#006569] tabular-nums">{selectedItem.sessionCount}</p>
                 </div>
               </div>
 
@@ -579,8 +686,8 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="bg-slate-50 px-3 py-2.5 border border-slate-200">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Device</p>
-                  <p className="text-sm font-semibold text-slate-700 truncate">{deviceLabel(selectedItem.device)}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Entry Page</p>
+                  <p className="text-sm font-semibold text-[#006569] truncate">{selectedItem.entryPath || '/'}</p>
                 </div>
                 <div className="bg-slate-50 px-3 py-2.5 border border-slate-200">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Browser Details</p>
@@ -658,6 +765,37 @@ export default function AdminVisitors() {
                 </div>
               )}
 
+              {/* CHANGE: 2026-10-17 — every session that was merged into this visitor. */}
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2">
+                  Sessions <span className="opacity-60">({selectedItem.sessions.length})</span>
+                </p>
+                <div className="bg-slate-50 border border-slate-200 divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                  {selectedItem.sessions.length > 0 ? (
+                    selectedItem.sessions.map((s) => (
+                      <div key={s._id} className="flex items-center justify-between gap-4 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-700 font-mono truncate">{s.sessionId}</p>
+                          <p className="text-[10px] text-slate-400 font-semibold truncate">
+                            {formatDateTime(s.lastSeen)} · {s.visitCount} visits · {s.lastPath || '/'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteSession(s._id)}
+                          disabled={loading}
+                          className="p-1.5 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50 shrink-0"
+                          title="Delete this session"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="p-4 text-sm text-slate-400 font-medium italic">No sessions recorded.</p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-2">
                   Page History <span className="opacity-60">({selectedItem.paths.length})</span>
@@ -689,7 +827,9 @@ export default function AdminVisitors() {
             </div>
 
             <div className="p-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between gap-3 shrink-0">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Session: {selectedItem._id}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {selectedItem.sessionCount} session{selectedItem.sessionCount === 1 ? '' : 's'} · {selectedItem.ip || 'unknown ip'}
+              </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSelectedItem(null)}
@@ -698,10 +838,10 @@ export default function AdminVisitors() {
                   Close
                 </button>
                 <button
-                  onClick={() => handleDelete(selectedItem._id)}
+                  onClick={() => handleDeleteVisitor(selectedItem)}
                   className="px-6 py-2.5 text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-all uppercase tracking-widest"
                 >
-                  Delete
+                  Delete Visitor
                 </button>
               </div>
             </div>

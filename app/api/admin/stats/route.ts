@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb-utils';
+import { VISITOR_KEY_EXPR, HUMAN_MATCH } from '@/lib/visitor-groups';
 
 export async function GET() {
   try {
@@ -35,14 +36,35 @@ export async function GET() {
     stats.submissions = await submissionsCol.countDocuments();
 
     // Visitors count (passive identification)
-    const visitorsCol = await getCollection('visitors');
-    stats.visitors = await visitorsCol.countDocuments();
+    // CHANGE: 2026-10-17 — owner: "same visitor marked as multiple visits as separate entry …
+    // ensure bots are separated." These two KPIs now count UNIQUE HUMAN VISITORS (sessions
+    // grouped by the shared IP + device key in lib/visitor-groups.ts) instead of raw session
+    // documents, so a crawler that opens 50 cookie-less sessions no longer inflates them (bots
+    // were ~38% of the collection). The Visitors screen shows the full breakdown.
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    // CHANGE: 2026-10-12 — owner: rename to "Visitors Last 24 Hours" and make the NUMBER
-    // match the label — a ROLLING 24h window instead of "since midnight".
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    stats.visitorsLast24h = await visitorsCol.countDocuments({ firstSeen: { $gte: last24h } });
+    const visitorsCol = await getCollection('visitors');
+    const [uniqueAgg, last24hAgg] = await Promise.all([
+      visitorsCol
+        .aggregate([
+          { $match: HUMAN_MATCH },
+          { $group: { _id: VISITOR_KEY_EXPR } },
+          { $count: 'n' },
+        ])
+        .toArray(),
+      // CHANGE: 2026-10-12 — owner: rename to "Visitors Last 24 Hours" and make the NUMBER
+      // match the label — a ROLLING 24h window instead of "since midnight".
+      visitorsCol
+        .aggregate([
+          { $match: { ...HUMAN_MATCH, firstSeen: { $gte: last24h } } },
+          { $group: { _id: VISITOR_KEY_EXPR } },
+          { $count: 'n' },
+        ])
+        .toArray(),
+    ]);
+    stats.visitors = uniqueAgg[0]?.n ?? 0;
+    stats.visitorsLast24h = last24hAgg[0]?.n ?? 0;
 
     // Problem reports count
     const problemReportsCol = await getCollection('problem_reports');
