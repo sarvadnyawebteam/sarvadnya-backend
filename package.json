@@ -13,9 +13,11 @@
     "test": "node scripts/api-test.mjs",
     "test:api": "node scripts/api-test.mjs",
     "test:sara": "node scripts/sara-test.mjs",
+    "test:sara-guard": "node scripts/sara-guard-test.mjs",
+    "test:sara-topics": "node scripts/sara-topics-test.mjs",
     "test:status": "node scripts/status-history-test.mjs",
     "test:guard": "node scripts/admin-guard-test.mjs",
-    "test:all": "node scripts/api-test.mjs && node scripts/sara-test.mjs && node scripts/status-history-test.mjs && node scripts/admin-guard-test.mjs && node scripts/accounts-admin-test.mjs && node scripts/visitors-admin-test.mjs && node scripts/referral-code-test.mjs",
+    "test:all": "node scripts/api-test.mjs && node scripts/sara-test.mjs && node scripts/sara-guard-test.mjs && node scripts/sara-topics-test.mjs && node scripts/sara-catalog-test.mjs && node scripts/status-history-test.mjs && node scripts/admin-guard-test.mjs && node scripts/accounts-admin-test.mjs && node scripts/visitors-admin-test.mjs && node scripts/referral-code-test.mjs",
     "test:email": "node scripts/email-test.mjs",
     "audit": "npm audit --audit-level=high",
     "audit:deps": "npm audit --json",
@@ -23,7 +25,8 @@
     "security:audit": "node scripts/security-audit.mjs && npm audit --audit-level=high",
     "test:accounts": "node scripts/accounts-admin-test.mjs",
     "test:visitors": "node scripts/visitors-admin-test.mjs",
-    "test:referral": "node scripts/referral-code-test.mjs"
+    "test:referral": "node scripts/referral-code-test.mjs",
+    "test:sara-catalog": "node scripts/sara-catalog-test.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
