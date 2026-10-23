@@ -5,7 +5,10 @@ import React, { useState, useEffect } from 'react';
 type Review = {
   _id: string;
   name: string;
-  rating: number;
+  // CHANGE: 2026-10-23 — rating is optional (curated Google reviews may carry no star
+  // count) and `role` holds a credential pill such as "CA". Mirrors lib/reviews.ts.
+  rating?: number;
+  role?: string;
   text: string;
   date: string;
   createdAt?: string;
@@ -14,7 +17,7 @@ type Review = {
 export default function AdminReviews() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newReview, setNewReview] = useState({ name: '', rating: 5, text: '', date: 'Just now' });
+  const [newReview, setNewReview] = useState({ name: '', rating: 5, role: '', text: '', date: 'Just now' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -54,7 +57,7 @@ export default function AdminReviews() {
 
       setMessage({ text: editingId ? 'Review updated!' : 'Review added!', type: 'success' });
       setEditingId(null);
-      setNewReview({ name: '', rating: 5, text: '', date: 'Just now' });
+      setNewReview({ name: '', rating: 5, role: '', text: '', date: 'Just now' });
       fetchReviews();
     } catch (err) {
       setMessage({ text: err instanceof Error ? err.message : 'Failed to save review.', type: 'error' });
@@ -65,13 +68,13 @@ export default function AdminReviews() {
 
   const handleEditClick = (review: Review) => {
     setEditingId(review._id);
-    setNewReview({ name: review.name, rating: review.rating, text: review.text, date: review.date });
+    setNewReview({ name: review.name, rating: review.rating ?? 5, role: review.role ?? '', text: review.text, date: review.date });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setNewReview({ name: '', rating: 5, text: '', date: 'Just now' });
+    setNewReview({ name: '', rating: 5, role: '', text: '', date: 'Just now' });
   };
 
   const handleDelete = async (id: string) => {
@@ -131,6 +134,13 @@ export default function AdminReviews() {
                 required
               />
             </div>
+            {/* CHANGE: 2026-10-23 — role pill (e.g. CA) shown next to the reviewer name. */}
+            <input
+              className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#0371a3]"
+              placeholder="Role / credential (optional, e.g. CA)"
+              value={newReview.role}
+              onChange={e => setNewReview({...newReview, role: e.target.value})}
+            />
             <textarea 
               className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-[#0371a3] h-32"
               placeholder="Review Text"
@@ -166,7 +176,12 @@ export default function AdminReviews() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-900">{review.name}</span>
-                  <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">{review.rating} ★</span>
+                  {review.role && (
+                    <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-bold uppercase">{review.role}</span>
+                  )}
+                  {typeof review.rating === 'number' && (
+                    <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">{review.rating} ★</span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400">{review.date}</p>
                 <p className="text-sm text-slate-600 line-clamp-2 italic">"{review.text}"</p>

@@ -4,6 +4,22 @@ import { staticReviews } from '@/lib/reviews';
 import clientPromise from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
+// CHANGE: 2026-10-23 — one sanitizer for POST + PUT. Adds `role` (e.g. CA) and makes
+// `rating` OPTIONAL: curated Google reviews do not always carry a star count, and the
+// homepage card now renders stars only when a rating exists (no invented ratings).
+function normalizeReview(data: any): Record<string, unknown> | null {
+  const name = typeof data?.name === 'string' ? data.name.trim() : '';
+  const text = typeof data?.text === 'string' ? data.text.trim() : '';
+  if (!name || !text) return null;
+  const out: Record<string, unknown> = { name, text };
+  const rating = Number(data?.rating);
+  if (Number.isFinite(rating) && rating >= 1 && rating <= 5) out.rating = Math.round(rating);
+  if (typeof data?.date === 'string' && data.date.trim()) out.date = data.date.trim().slice(0, 40);
+  if (typeof data?.role === 'string' && data.role.trim()) out.role = data.role.trim().slice(0, 24);
+  if (typeof data?.source === 'string' && data.source.trim()) out.source = data.source.trim().slice(0, 40);
+  return out;
+}
+
 export async function GET() {
   try {
     let reviews = await getReviews();
@@ -27,10 +43,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    if (!data.name || !data.rating || !data.text) {
+    const clean = normalizeReview(data);
+    if (!clean) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    const result = await addReview(data);
+    const result = await addReview(clean);
     return NextResponse.json({ message: 'Review added successfully', id: result.insertedId });
   } catch (error) {
     console.error('Error adding review:', error);
@@ -60,11 +77,12 @@ async function handleUpdate(request: Request) {
     if (!id) {
       return NextResponse.json({ error: 'ID required' }, { status: 400 });
     }
-    if (!data.name || !data.rating || !data.text) {
+    const { id: _id, ...rest } = data;
+    const clean = normalizeReview(rest);
+    if (!clean) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    const { id: _id, ...updateData } = data;
-    const result = await updateReview(id, updateData);
+    const result = await updateReview(id, clean);
     if (result.matchedCount === 0) {
       return NextResponse.json({ error: 'Review not found' }, { status: 404 });
     }
