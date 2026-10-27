@@ -63,26 +63,36 @@ export async function GET(request: Request) {
     const sortDir = url.searchParams.get('sortDir') === 'asc' ? 1 : -1;
 
     // Per-session match, applied BEFORE the grouping.
-    const filter: Record<string, unknown> = { ...(scope === 'bots' ? BOT_MATCH : HUMAN_MATCH) };
-    if (country && country !== 'all') filter['geo.country'] = country;
-    if (device && device !== 'all') filter['device.type'] = device;
+    //
+    // CHANGE: 2026-10-26 — built as `$and` clauses instead of one spread object. `BOT_MATCH`
+    // is now a top-level `{ $or: [...] }` (write-time bot flag OR a crawler user-agent, so
+    // historical rows reclassify without a migration), and the `q` search also needs a
+    // top-level `$or`. Two `$or`s cannot coexist as object keys — spreading/assigning one
+    // silently REPLACED the other, so a search in the Bots tab would have listed humans and
+    // a device filter would have re-admitted every bot. `$and` keeps each condition intact.
+    const and: Record<string, unknown>[] = [scope === 'bots' ? BOT_MATCH : HUMAN_MATCH];
+    if (country && country !== 'all') and.push({ 'geo.country': country });
+    if (device && device !== 'all') and.push({ 'device.type': device });
     if (q) {
       const rx = new RegExp(escapeRegex(q), 'i');
-      filter.$or = [
-        { 'geo.country': rx },
-        { 'geo.city': rx },
-        { 'geo.region': rx },
-        { 'geo.isp': rx },
-        { lastPath: rx },
-        { ip: rx },
-        // CHANGE: 2026-10-17 — device/UA are now searchable so "bot" or "headless"
-        // can be typed straight into the search box.
-        { userAgent: rx },
-        { 'device.browser': rx },
-        { 'device.os': rx },
-        { 'device.type': rx },
-      ];
+      and.push({
+        $or: [
+          { 'geo.country': rx },
+          { 'geo.city': rx },
+          { 'geo.region': rx },
+          { 'geo.isp': rx },
+          { lastPath: rx },
+          { ip: rx },
+          // CHANGE: 2026-10-17 — device/UA are now searchable so "bot" or "headless"
+          // can be typed straight into the search box.
+          { userAgent: rx },
+          { 'device.browser': rx },
+          { 'device.os': rx },
+          { 'device.type': rx },
+        ],
+      });
     }
+    const filter = { $and: and };
 
     const col = await getCollection('visitors');
     const now = Date.now();

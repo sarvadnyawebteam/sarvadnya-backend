@@ -13,9 +13,17 @@
 //      adding a SECOND session to an existing signature does NOT move meta.total.
 //   5. Device / country filters and the search box narrow correctly, and sort=visitCount
 //      orders by the SUMMED value.
-//   6. DELETE ?ids=a,b,c removes every session of the row; legacy ?id= removes one session;
+//   6. CHANGE: 2026-10-26 — a crawler that was STORED as a human (an old/unknown bot UA,
+//      e.g. facebookexternalhit / Google-NotebookLM / Dataprovider.com) is reclassified on
+//      READ: it appears under scope=bots and NOT under scope=humans. No migration needed.
+//   7. The write-side BOT_UA_PATTERN here is byte-identical to the READ-side copy in
+//      lib/visitor-groups.ts, so one UA can never be a human on one screen and a bot on
+//      the other.
+//   8. The dashboard KPI `visitorsLast24h` equals the Visitors panel's `meta.activeToday`
+//      (both window on lastSeen), so the two screens cannot report different populations.
+//   9. DELETE ?ids=a,b,c removes every session of the row; legacy ?id= removes one session;
 //      malformed id -> 400, unknown id -> 404, oversized id list -> 400.
-//   7. Teardown leaves zero residue (the shared Atlas DB must never keep test data).
+//  10. Teardown leaves zero residue (the shared Atlas DB must never keep test data).
 //
 // Conventions mirrored from accounts-admin-test.mjs: raw .env parse (the CRLF-mangled
 // ADMIN_ACCESS_KEY — @next/env reads only the first whitespace-delimited token), free
@@ -97,7 +105,14 @@ async function getVisitors(qs, headers = authHeaders()) {
 // Synthetic data — reserved IPs, unique device signatures
 // ---------------------------------------------------------------------------
 const MARK = '__e2e_visitor__';
-const TEST_IPS = ['203.0.113.10', '203.0.113.20', '203.0.113.30', '203.0.113.40', '203.0.113.50'];
+// CHANGE: 2026-10-26 — appended .60–.92 for the bot-reclassification assertions below
+// (facebookexternalhit / Google-NotebookLM / Dataprovider.com vs a human control).
+// Every new fixture IP MUST be listed here, because cleanup() and the teardown
+// residue assertions both key off this array — an unlisted IP would leak a live DB doc.
+const TEST_IPS = [
+  '203.0.113.10', '203.0.113.20', '203.0.113.30', '203.0.113.40', '203.0.113.50',
+  '203.0.113.60', '203.0.113.70', '203.0.113.80', '203.0.113.90', '203.0.113.91', '203.0.113.92',
+];
 
 function nowMs() {
   return Date.now();
@@ -398,7 +413,103 @@ function findGroup(body, ip) {
     check('sortBy=visitCount desc -> highest SUMMED visits first (H2=5 before H1=3)',
       sorted[0]?.ip === TEST_IPS[2], sorted.map((v) => `${v.ip}:${v.visitCount}`).join(','));
 
-    // --- 7) delete --------------------------------------------------------
+    // --- 7) read-side bot reclassification --------------------------------
+    // CHANGE: 2026-10-26 — a crawler stored as a HUMAN (device.type 'desktop', set by an
+    // older write-side regex that did not know the UA) must still surface under Bots.
+    // The route classifies at READ time, so no migration of historical docs is needed.
+    // Each doc below is deliberately written with DEV_DESKTOP + a crawler UA: if the read
+    // side did NOT reclassify, these three would sit in `humans` and this group would fail.
+    // Baseline for the population counters. NOTE: this suite writes to the SHARED live DB, so
+    // real traffic can arrive at any moment — the deltas below are therefore asserted as
+    // ">= base + n" (real visitors can only ADD), never as exact equality. The per-IP scope
+    // assertions are the exact proof; the counters prove they were counted on the right side.
+    const metaBefore = (await getVisitors('scope=humans&limit=1')).body?.meta || {};
+    const botBase = metaBefore.botVisitors || 0;
+    const totalBase = metaBefore.total || 0;
+    const crawlerFixtures = [
+      { ip: TEST_IPS[5], ua: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)' },
+      { ip: TEST_IPS[6], ua: 'Mozilla/5.0 (compatible; Google-NotebookLM/1.0; +https://notebooklm.google.com)' },
+      { ip: TEST_IPS[7], ua: 'Mozilla/5.0 (compatible; Dataprovider.com/1.0; +https://www.dataprovider.com)' },
+    ];
+    await col.insertMany(crawlerFixtures.map((f) => sessionDoc({
+      ip: f.ip, device: DEV_DESKTOP, visitCount: 1, pageViews: 1,
+      firstSeen: t - 10 * 60 * 1000, lastSeen: t - 10 * 60 * 1000,
+      entryPath: '/crawler-probe', lastPath: '/crawler-probe', paths: [],
+      geo: GEO_IN, userAgent: f.ua,
+    })));
+    // human control on a crawler-free UA — must stay in `humans`
+    await col.insertOne(sessionDoc({
+      ip: TEST_IPS[8], device: DEV_DESKTOP, visitCount: 1, pageViews: 1,
+      firstSeen: t - 10 * 60 * 1000, lastSeen: t - 10 * 60 * 1000,
+      entryPath: '/human-control', lastPath: '/human-control', paths: [],
+      geo: GEO_IN, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+    }));
+
+    for (const f of crawlerFixtures) {
+      const inBots = await getVisitors(`scope=bots&limit=100&q=${encodeURIComponent(f.ip)}`);
+      check(`reclassify: ${f.ip} (stored human) -> 1 row under scope=bots`,
+        (inBots.body?.visitors || []).length === 1 && inBots.body.visitors[0].ip === f.ip,
+        `rows=${(inBots.body?.visitors || []).map((v) => v.ip).join(',')}`);
+      const inHumans = await getVisitors(`scope=humans&limit=100&q=${encodeURIComponent(f.ip)}`);
+      check(`reclassify: ${f.ip} -> 0 rows under scope=humans`,
+        (inHumans.body?.visitors || []).length === 0,
+        `rows=${(inHumans.body?.visitors || []).map((v) => v.ip).join(',')}`);
+    }
+    r = await getVisitors(`scope=humans&limit=100&q=${encodeURIComponent(TEST_IPS[8])}`);
+    check('reclassify: human control stays under scope=humans (1 row)',
+      (r.body?.visitors || []).length === 1 && r.body.visitors[0].ip === TEST_IPS[8],
+      `rows=${(r.body?.visitors || []).map((v) => v.ip).join(',')}`);
+    r = await getVisitors(`scope=bots&limit=100&q=${encodeURIComponent(TEST_IPS[8])}`);
+    check('reclassify: human control absent from scope=bots',
+      (r.body?.visitors || []).length === 0, `rows=${(r.body?.visitors || []).map((v) => v.ip).join(',')}`);
+    // Population counters: the 3 crawler fixtures must land on the BOT side, and the human
+    // control must land on the HUMAN side. Asserted as ">= base + n" because the suite writes
+    // to the shared live DB and real visitors can add to either counter while it runs.
+    const metaAfter = (await getVisitors('scope=humans')).body?.meta || {};
+    check('reclassify: crawler fixtures counted as BOTS (meta.botVisitors >= base+3)',
+      (metaAfter.botVisitors || 0) >= botBase + 3, `${metaAfter.botVisitors} vs ${botBase}+3`);
+    check('reclassify: human control counted as HUMAN (meta.total >= base+1)',
+      (metaAfter.total || 0) >= totalBase + 1, `${metaAfter.total} vs ${totalBase}+1`);
+
+    // --- 8) BOT_UA_PATTERN parity (write side vs read side) ----------------
+    // CHANGE: 2026-10-26 — the pattern lives in lib/visitors.ts (write) and is duplicated in
+    // lib/visitor-groups.ts (read, comment-free). If they drift, a UA gets stored as a human
+    // here and reclassified as a bot there (or vice versa) — the exact bug this session fixed.
+    const patternOf = (file) => {
+      const src = readFileSync(join(ROOT, file), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+      const start = src.indexOf('export const BOT_UA_PATTERN');
+      if (start === -1) return '';
+      const end = src.indexOf(';', start);
+      if (end === -1) return '';
+      return (src.slice(start, end).match(/'[^']*'|"[^"]*"/g) || [])
+        .map((s) => s.slice(1, -1))
+        .join('');
+    };
+    const writePattern = patternOf('lib/visitors.ts');
+    const readPattern = patternOf('lib/visitor-groups.ts');
+    check('parity: lib/visitors.ts exports BOT_UA_PATTERN', writePattern.length > 0, `len=${writePattern.length}`);
+    check('parity: lib/visitor-groups.ts carries BOT_UA_PATTERN', readPattern.length > 0, `len=${readPattern.length}`);
+    check('parity: write-side and read-side patterns are IDENTICAL', writePattern === readPattern,
+      `write=${writePattern.length} read=${readPattern.length}`);
+    check('parity: pattern covers the crawlers this session fixed',
+      ['notebooklm', 'dataprovider', 'facebookexternalhit'].every((k) => writePattern.includes(k)),
+      writePattern.slice(0, 120));
+
+    // --- 9) dashboard KPI agrees with the visitors panel -------------------
+    // CHANGE: 2026-10-26 — `visitorsLast24h` used to window on firstSeen, so a returning
+    // visitor who came back today was invisible (the panel counted them on lastSeen). Both
+    // now use lastSeen; this assertion is what keeps them from drifting apart again.
+    r = await api('/api/admin/stats', { headers: authHeaders() });
+    check('stats: GET /api/admin/stats -> 200', r.status === 200, `got ${r.status}`);
+    const kpi24h = r.body?.visitorsLast24h;
+    const panelActive = (await getVisitors('scope=humans&limit=1')).body?.meta?.activeToday;
+    check('stats: visitorsLast24h is a number', typeof kpi24h === 'number', `${typeof kpi24h}`);
+    check('stats: visitorsLast24h >= 1 (the fixtures are counted, so the check is not vacuous)',
+      typeof kpi24h === 'number' && kpi24h >= 1, `got ${kpi24h}`);
+    check('stats: visitorsLast24h === visitors meta.activeToday', kpi24h === panelActive,
+      `${kpi24h} vs ${panelActive}`);
+
+    // --- 10) delete -------------------------------------------------------
     if (H1) {
       const ids = H1.sessionIds.join(',');
       r = await api(`/api/admin/visitors?ids=${encodeURIComponent(ids)}`, { method: 'DELETE', headers: authHeaders() });

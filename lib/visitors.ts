@@ -589,13 +589,42 @@ export async function applyReverseDns(sessionId: string, rdns: string | null): P
 // Device parsing (dependency-free)
 // ---------------------------------------------------------------------------
 
+// CHANGE: 2026-10-26 — ported from the public repo. The original bot regex only caught
+// `bot|spider|crawler|slurp|curl|wget|headless|puppeteer|phantom|preview`, so real crawlers
+// were stored as PEOPLE (measured live: 16 docs of `facebookexternalhit`, 2 of
+// `Google-NotebookLM`, 2 of `Dataprovider.com` were `device.type: 'unknown'` and counted in
+// the humans KPI). `BOT_UA_PATTERN` is exported as a STRING because `lib/visitor-groups.ts`
+// re-declares this same source for the read-side Mongo `$regex` — the two files must stay
+// byte-identical (see the note there).
+export const BOT_UA_PATTERN =
+  // classic crawlers
+  'bot|spider|crawler|slurp|archiver|scrapy|scraper' +
+  // link unfurlers / social previewers — ONLY the unambiguous crawler product names.
+  // Do NOT add bare `whatsapp`, `telegram`, `linkedin`, `twitter`, `pinterest` or `discord`:
+  // those words also appear in in-app browsers used by real customers (a WhatsApp or
+  // LinkedIn in-app tap would then be counted as a bot, and WhatsApp traffic in India is
+  // large). Every one of those tools' CRAWLER is already caught by `bot`.
+  '|facebookexternalhit|facebookcatalog|meta-external|embedly|skypeuripreview|vkshare' +
+  // AI / answer-engine crawlers (2026)
+  '|chatgpt|openai|gptbot|oai-searchbot|claude|anthropic|perplexity|cohere|youbot|ccbot|' +
+  'bytespider|petal|notebooklm|googleother|google-extended|mediapartners|storebot' +
+  // SEO / monitoring / security scanners
+  '|ahrefs|semrush|mj12|dotbot|dataprovider|bitsight|hubspot|canvabot|sogou|yandex|baidu|' +
+  'duckduck|seznam|qwant|lighthouse|pagespeed|gtmetrix|uptime|pingdom|monitor|censys|' +
+  'shodan|masscan|zgrab|nmap' +
+  // headless renderers
+  '|headless|puppeteer|playwright|phantom|prerender|preview' +
+  // plain HTTP clients (never a browser)
+  '|curl|wget|libwww|httpclient|okhttp|go-http-client|python-requests|python-urllib|axios|' +
+  'node-fetch|undici|java\\/|jakarta|apache-http';
+
+const BOT_UA_RE = new RegExp(BOT_UA_PATTERN, 'i');
+
 export function parseDevice(ua: string): DeviceInfo {
   const s = String(ua || '');
   const lower = s.toLowerCase();
 
-  const isBot = /bot|spider|crawler|slurp|curl|wget|headless|puppeteer|phantom|preview/i.test(
-    lower
-  );
+  const isBot = BOT_UA_RE.test(lower);
   const isTablet =
     /ipad|tablet|playbook|kindle|silk/i.test(s) ||
     (/android/i.test(s) && !/mobile/i.test(s));

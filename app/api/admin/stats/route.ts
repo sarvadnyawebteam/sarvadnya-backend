@@ -55,9 +55,16 @@ export async function GET() {
         .toArray(),
       // CHANGE: 2026-10-12 — owner: rename to "Visitors Last 24 Hours" and make the NUMBER
       // match the label — a ROLLING 24h window instead of "since midnight".
+      // CHANGE: 2026-10-26 — the window was measured on `firstSeen`, but a `visitors`
+      // document is ONE SESSION keyed by the 1-year `svd_vid` cookie, so a RETURNING visitor
+      // carries a months-old `firstSeen` and dropped out of this card entirely. Measured
+      // live on 2026-10-26: 5 unique humans with `firstSeen >= 24h` vs 8 with
+      // `lastSeen >= 24h` — and the Visitors screen (which already used `lastSeen` for its
+      // `activeToday` stat) said 8. `lastSeen` is the correct field, and it makes this KPI
+      // agree with that screen instead of under-reporting every returning visitor.
       visitorsCol
         .aggregate([
-          { $match: { ...HUMAN_MATCH, firstSeen: { $gte: last24h } } },
+          { $match: { ...HUMAN_MATCH, lastSeen: { $gte: last24h } } },
           { $group: { _id: VISITOR_KEY_EXPR } },
           { $count: 'n' },
         ])
