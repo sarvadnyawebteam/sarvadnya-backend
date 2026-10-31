@@ -66,6 +66,10 @@ export const FORM_DESTINATIONS: FormDestination[] = [
   // SAVE but email NOBODY (the safety contract — a misconfiguration can never
   // fire an unwanted email on live).
   { key: 'ask-sara', label: 'Ask Sara Chat Leads', paths: [], category: 'others' },
+  // CHANGE: 2026-10-30 — Careers emails (port of the public repo change). The job
+  // application action and the resume route submit with destination 'careers'.
+  // OPT-IN: until EMAIL_DESTINATION_RECIPIENTS.careers is seeded these send nothing.
+  { key: 'careers', label: 'Careers / Job Applications', paths: ['/careers'], category: 'others' },
 ];
 
 export const KNOWN_DESTINATION_KEYS = FORM_DESTINATIONS.map((d) => d.key);
