@@ -1,7 +1,33 @@
 import { Resend } from 'resend';
+// CHANGE: 2026-11-04 — Same branded masthead/footer as the public deployment's
+// transactional mail, so every email from us looks like one company.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { getSettings } from '@/lib/mongodb-utils';
 import { parseDevice } from '@/lib/visitors';
 import type { GeoInfo } from '@/lib/visitors';
+import { renderBrandHeader, renderBrandFooter } from '@/lib/email-brand.mjs';
+import type { EmailBrandCompany, EmailLogo } from '@/lib/email-brand.mjs';
+
+// CHANGE: 2026-11-04 — Company block for the shared masthead/footer.
+const DEFAULT_COMPANY: EmailBrandCompany = {
+  name: 'Sarvadnya Infotech LLP',
+  tagline: 'Tally Certified Partner · Trusted Since 2008',
+  website: 'https://sarvadnyainfotech.com',
+  email: 'info@sarvadnyainfotech.com',
+  address: '73, Vindhya Commercial Premises, Sector - 11, Plot No - 1, CBD Belapur, Mumbai, Maharashtra',
+};
+
+// CHANGE: 2026-11-04 — inline logo (cid:) so the masthead renders even when the
+// client blocks remote images. Returns null when the asset is missing so a send
+// is never blocked by an image.
+function loadInlineLogo(): { buffer: Buffer } | null {
+  try {
+    return { buffer: readFileSync(join(process.cwd(), 'public', 'TallyCertificate.png')) };
+  } catch {
+    return null;
+  }
+}
 
 export interface FormSubmissionPayload {
   name: string;
@@ -87,7 +113,11 @@ export function getSubject(formType?: string): string {
   return `New ${getFormTypeLabel(formType)} — Sarvadnya Infotech`;
 }
 
-export function buildFormEmailHtml(submission: FormSubmissionPayload): string {
+export function buildFormEmailHtml(
+  submission: FormSubmissionPayload,
+  options?: { company?: EmailBrandCompany; logo?: EmailLogo }
+): string {
+  const company = { ...DEFAULT_COMPANY, ...(options?.company || {}) };
   const gpcOptOut = submission.ipMasked === 'gpc-opt-out' || (!submission.geo && !submission.ip);
 
   const location = submission.geo
@@ -146,26 +176,31 @@ export function buildFormEmailHtml(submission: FormSubmissionPayload): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>New ${escapeHtml(getFormTypeLabel(submission.formType))}</title>
+  </head>
   <body style="margin:0;padding:0;background:#f1f3f2;font-family:Arial,Helvetica,sans-serif;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f3f2;padding:24px 12px;">
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(31,77,58,0.08);">
-            <tr>
-              <td style="background:#006569;padding:22px 24px;">
-                <p style="margin:0;color:#ffffff;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Sarvadnya Infotech LLP</p>
-                <h1 style="margin:6px 0 0;color:#ffffff;font-size:20px;font-weight:800;">New ${escapeHtml(getFormTypeLabel(submission.formType))}</h1>
-              </td>
-            </tr>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(31,77,58,0.08);">
+            ${renderBrandHeader({ company, logo: options?.logo })}
             <tr>
               <td style="padding:24px;">
+                <p style="margin:0 0 6px;color:#045A57;font-size:20px;font-weight:800;">New ${escapeHtml(getFormTypeLabel(submission.formType))}</p>
                 <p style="margin:0 0 16px;color:#5b6b64;font-size:13px;line-height:1.5;">A new web enquiry has been received. Details below:</p>
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
                   ${rowsHtml}
                 </table>
-                <p style="margin:20px 0 0;color:#8a9a92;font-size:11px;line-height:1.5;">This is an automated notification. Reply to this email to respond to the enquirer directly (their address is set as the reply-to).${submission.sessionId ? ` Captured via passive visitor identification · Session ${submission.sessionId.slice(0, 8)}…` : ' Captured via passive visitor identification.'}</p>
               </td>
             </tr>
+            ${renderBrandFooter({
+              company,
+              footerHtml: `This is an automated notification. Reply to this email to respond to the enquirer directly (their address is set as the reply-to).${submission.sessionId ? ` Captured via passive visitor identification · Session ${escapeHtml(submission.sessionId.slice(0, 8))}…` : ' Captured via passive visitor identification.'}`,
+            })}
           </table>
         </td>
       </tr>
@@ -284,14 +319,27 @@ export async function resolveRecipients(input: {
   return resolveFormRecipients(input.formType);
 }
 
-// CHANGE: 2026-10-07 — One GLOBAL CC for every internal form copy this
-// deployment sends. The toggle + address are read from the SHARED settings DB
-// (admin panel /admin/email-config) with env fallbacks; disabled by default and
-// an invalid address yields NO cc, so enabling can never break or trigger a
-// send. The frontend repo applies the same single source to its client
-// auto-reply; this repo predates the auto-reply module and only sends internal
-// copies.
-export async function getGlobalCc(): Promise<string[] | null> {
+// CHANGE: 2026-11-04 — Per-category global CC. The master switch alone no longer
+// CCs anything: a destination must ALSO be ticked in the admin Email Config
+// (setting `EMAIL_CC_DESTINATIONS`, JSON array of destination/form keys). The
+// public repo reads the same settings, so one place configures both deployments.
+// An empty list = NO CC anywhere (the safe default).
+function parseCcDestinations(raw: unknown): string[] {
+  const value = String(raw || '').trim();
+  if (!value) return [];
+  const clean = (list: unknown[]): string[] =>
+    list.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean);
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return clean(parsed);
+    if (typeof parsed === 'string') return clean(parsed.split(','));
+  } catch {
+    return clean(value.split(','));
+  }
+  return [];
+}
+
+export async function getGlobalCc(destination?: string): Promise<string[] | null> {
   let settings: Record<string, any> = {};
   try {
     settings = await getSettings();
@@ -304,12 +352,19 @@ export async function getGlobalCc(): Promise<string[] | null> {
   if (!enabled) return null;
   const address = String(settings.EMAIL_CC || process.env.EMAIL_CC || '').trim().toLowerCase();
   if (!isValidEmail(address)) return null;
+  const key = String(destination || '').trim().toLowerCase();
+  // No destination → no CC. Only an explicitly ticked category may carry it.
+  if (!key) return null;
+  const allowed = parseCcDestinations(
+    settings.EMAIL_CC_DESTINATIONS || process.env.EMAIL_CC_DESTINATIONS || ''
+  );
+  if (!allowed.includes(key)) return null;
   return [address];
 }
 
 export async function sendInternalFormCopy(
   submission: FormSubmissionPayload,
-  options?: { recipients?: string[]; from?: string }
+  options?: { recipients?: string[]; from?: string; destination?: string }
 ): Promise<SendResult> {
   const { apiKey, from: configuredFrom } = await getEmailConfig();
 
@@ -330,9 +385,10 @@ export async function sendInternalFormCopy(
   }
 
   const resend = new Resend(apiKey);
-  // CHANGE: 2026-10-07 — Global CC rides the same payload; null when
-  // disabled/invalid → no cc key at all (see getGlobalCc above).
-  const globalCc = await getGlobalCc();
+  // CHANGE: 2026-11-04 — destination-scoped global CC (only a ticked category).
+  const globalCc = await getGlobalCc(options?.destination || submission.destination || submission.formType);
+  // CHANGE: 2026-11-04 — branded masthead with the logo embedded inline.
+  const logoFile = loadInlineLogo();
   const sendPayload: {
     from: string;
     to: string[];
@@ -340,13 +396,28 @@ export async function sendInternalFormCopy(
     subject: string;
     html: string;
     replyTo?: string;
+    attachments?: { filename: string; content: Buffer; contentType: string; contentId: string }[];
     tags: { name: string; value: string }[];
   } = {
     from,
     to: recipients,
     ...(globalCc ? { cc: globalCc } : {}),
     subject: getSubject(submission.formType),
-    html: buildFormEmailHtml(submission),
+    html: buildFormEmailHtml(submission, {
+      logo: logoFile ? { cid: 'sarvadnya-logo' } : undefined,
+    }),
+    ...(logoFile
+      ? {
+          attachments: [
+            {
+              filename: 'sarvadnya-logo.png',
+              content: logoFile.buffer,
+              contentType: 'image/png',
+              contentId: 'sarvadnya-logo',
+            },
+          ],
+        }
+      : {}),
     tags: [
       { name: 'source', value: 'web-form' },
       { name: 'form_type', value: submission.formType || 'general' },

@@ -22,11 +22,16 @@ export default function AdminEmailConfig() {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [sender, setSender] = useState('');
   const [destinations, setDestinations] = useState<Record<string, string>>({});
-  // CHANGE: 2026-10-07 — One GLOBAL CC, applied to every email this deployment
-  // sends (the public repo reads the SAME shared settings for its auto-reply,
-  // so one place configures both deployments).
+  // CHANGE: 2026-10-07 — One GLOBAL CC address, but (2026-11-04) it is only
+  // applied to the categories explicitly ticked below. The public repo reads the
+  // SAME shared settings for its auto-reply, so one place configures both.
   const [globalCcEnabled, setGlobalCcEnabled] = useState(false);
   const [globalCc, setGlobalCc] = useState('');
+  // CHANGE: 2026-11-04 — per-category tick marks (owner: "ensure each email config
+  // in advance has a tick mark, if active, means that category can trigger global
+  // cc"). Stored as EMAIL_CC_DESTINATIONS (JSON array of destination keys). An
+  // empty list = no CC anywhere, which is the safe default.
+  const [ccDestinations, setCcDestinations] = useState<string[]>([]);
   const [stats, setStats] = useState<QueueStats | null>(null);
   const [recent, setRecent] = useState<any[]>([]);
 
@@ -49,6 +54,18 @@ export default function AdminEmailConfig() {
       // CHANGE: 2026-10-07 — global CC state; '1'/'true'/'yes'/'on' = enabled.
       setGlobalCcEnabled(['1', 'true', 'yes', 'on'].includes(String(settingsMap.get('EMAIL_CC_ENABLED') || '').trim().toLowerCase()));
       setGlobalCc(settingsMap.get('EMAIL_CC') || '');
+
+      // CHANGE: 2026-11-04 — which categories are allowed to carry the global CC.
+      let ccTicked: string[] = [];
+      try {
+        const parsedCc = JSON.parse(settingsMap.get('EMAIL_CC_DESTINATIONS') || '[]');
+        if (Array.isArray(parsedCc)) {
+          ccTicked = parsedCc.map((k) => String(k || '').trim().toLowerCase()).filter(Boolean);
+        }
+      } catch {
+        ccTicked = [];
+      }
+      setCcDestinations(ccTicked);
 
       let destParsed: Record<string, string> = {};
       try {
@@ -121,6 +138,9 @@ export default function AdminEmailConfig() {
             { key: 'EMAIL_DESTINATION_RECIPIENTS', value: JSON.stringify(cleanDest, null, 2) },
             { key: 'EMAIL_CC_ENABLED', value: globalCcEnabled ? '1' : '0' },
             { key: 'EMAIL_CC', value: globalCc.trim() },
+            // CHANGE: 2026-11-04 — JSON array of ticked destination keys; the
+            // server only CCs a send whose destination appears here.
+            { key: 'EMAIL_CC_DESTINATIONS', value: JSON.stringify(ccDestinations) },
           ],
         }),
       });
@@ -169,22 +189,69 @@ export default function AdminEmailConfig() {
     );
   };
 
-  const renderDestinationInput = ({ key, label }: { key: string; label: string }, pathText?: string) => (
-    <div key={key} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <label className="text-xs font-bold text-slate-700">{label}</label>
-        <span className="text-[10px] text-slate-400 font-mono font-medium">({key})</span>
+  // CHANGE: 2026-11-04 — each destination row now carries a tick mark. Only rows
+  // ticked here may trigger the global CC; the ticks are disabled while the master
+  // CC switch is off so the state can never look active when it is not.
+  const toggleCcDestination = (key: string) => {
+    setCcDestinations((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const renderDestinationInput = ({ key, label }: { key: string; label: string }, pathText?: string) => {
+    const ccTicked = ccDestinations.includes(key);
+    return (
+      <div
+        key={key}
+        className={`rounded-2xl border p-4 transition-colors ${
+          ccTicked && globalCcEnabled
+            ? 'border-teal-200 bg-teal-50/50'
+            : 'border-slate-100 bg-slate-50/50'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <label className="text-xs font-bold text-slate-700">{label}</label>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-400 font-mono font-medium">({key})</span>
+            <label
+              title={
+                globalCcEnabled
+                  ? 'Tick to apply the global CC to this category'
+                  : 'Enable the global CC above to use these ticks'
+              }
+              className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wider cursor-pointer select-none transition-colors ${
+                !globalCcEnabled
+                  ? 'border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed'
+                  : ccTicked
+                    ? 'border-teal-200 bg-teal-100 text-teal-700'
+                    : 'border-slate-200 bg-white text-slate-400 hover:border-teal-200 hover:text-teal-600'
+              }`}
+            >
+              {/* CHANGE: 2026-11-04 — never RENDER a tick while the master switch
+                  is off, even if this row was ticked earlier. The stored list is
+                  preserved; the tick only looks (and acts) active when it can apply. */}
+              <input
+                type="checkbox"
+                className="w-3 h-3 accent-[#006569]"
+                checked={ccTicked && globalCcEnabled}
+                disabled={!globalCcEnabled}
+                onChange={() => toggleCcDestination(key)}
+              />
+              CC
+            </label>
+          </div>
+        </div>
+        {pathText && <p className="text-[10px] text-slate-400 font-medium mb-2">{pathText}</p>}
+        <input
+          type="text"
+          className="w-full px-3 py-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0371a3]/30 focus:border-[#0371a3] text-sm"
+          placeholder="name@company.com (comma-separated)"
+          value={destinations[key] || ''}
+          onChange={(e) => setDestinations((prev) => ({ ...prev, [key]: e.target.value }))}
+        />
       </div>
-      {pathText && <p className="text-[10px] text-slate-400 font-medium mb-2">{pathText}</p>}
-      <input
-        type="text"
-        className="w-full px-3 py-2.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0371a3]/30 focus:border-[#0371a3] text-sm"
-        placeholder="name@company.com (comma-separated)"
-        value={destinations[key] || ''}
-        onChange={(e) => setDestinations((prev) => ({ ...prev, [key]: e.target.value }))}
-      />
-    </div>
-  );
+    );
+  };
 
   const customKeys = Object.keys(destinations).filter((k) => !KNOWN_DESTINATION_KEYS.includes(k));
 
@@ -235,7 +302,8 @@ export default function AdminEmailConfig() {
               <h2 className="text-sm font-black uppercase tracking-widest text-[#0371a3] mb-1">2 · Recipients by Page</h2>
               <p className="text-[10px] text-slate-400 font-medium mb-5">
                 Each page's forms (modal + sidebar enquiry) email only the receiver set below. Blank = no email for that
-                page (opt-in). Multiple addresses can be comma-separated.
+                page (opt-in). Multiple addresses can be comma-separated. Use the <strong>CC</strong> tick on a row to
+                allow the global CC (section 3) for that category.
               </p>
 
               {DESTINATION_CATEGORIES.map(({ key: categoryKey, label: categoryLabel, description }) => {
@@ -279,13 +347,13 @@ export default function AdminEmailConfig() {
             </div>
           </div>
 
-          {/* CHANGE: 2026-10-07 — One GLOBAL CC (owner: "one global CC, all emails").
-              Applied to every email the site sends — internal form copies here, and
-              the customer auto-reply on the public repo (shared settings). OFF by
-              default; even when ON, an empty or invalid address produces no CC, so
-              saving can never break or trigger a send. */}
+          {/* CHANGE: 2026-11-04 — Global CC is now opt-in per category. The master
+              switch alone CCs nothing: a row must also be ticked above (EMAIL_CC_DESTINATIONS).
+              Owner: "I don't want global CC… each email config has a tick mark; if
+              active, that category can trigger global CC." OFF by default, and an
+              empty or invalid address still yields no CC. */}
           <div className="space-y-3">
-            <h2 className="text-sm font-black uppercase tracking-widest text-[#0371a3]">3 · Global CC (all emails)</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-[#0371a3]">3 · Global CC (ticked categories only)</h2>
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -293,7 +361,7 @@ export default function AdminEmailConfig() {
                 onChange={(e) => setGlobalCcEnabled(e.target.checked)}
                 className="w-4 h-4 accent-[#0371a3]"
               />
-              <span className="text-xs font-bold text-slate-800">Enable a single CC address on every email</span>
+              <span className="text-xs font-bold text-slate-800">Enable the global CC master switch</span>
             </label>
             <input
               type="text"
@@ -304,9 +372,15 @@ export default function AdminEmailConfig() {
               disabled={!globalCcEnabled}
             />
             <p className="text-[10px] text-slate-400 font-medium">
-              Stored as EMAIL_CC / EMAIL_CC_ENABLED in the shared settings DB — one place configures both
-              deployments. Internal copies &amp; the customer auto-reply all carry it. Disabled by default, and
-              an empty/invalid address yields no CC even when toggled on.
+              Stored as EMAIL_CC / EMAIL_CC_ENABLED / EMAIL_CC_DESTINATIONS in the shared settings DB — one place
+              configures both deployments. The switch turns the feature on; the <strong>CC ticks</strong> on the
+              categories above decide which emails actually receive it. No tick = no CC for that category, even with the
+              switch on. Disabled by default; an empty/invalid address yields no CC.
+            </p>
+            <p className="text-[10px] font-bold text-slate-500">
+              {ccDestinations.length === 0
+                ? 'No categories ticked — the global CC will not be applied anywhere.'
+                : `${ccDestinations.length} ${ccDestinations.length === 1 ? 'category' : 'categories'} ticked: ${ccDestinations.join(', ')}`}
             </p>
           </div>
 

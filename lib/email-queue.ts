@@ -163,7 +163,8 @@ export async function sendEmailDirect(input: {
   }
 
   // Fresh claim → send the internal copy NOW (directly, inline in the request).
-  const res = await sendInternalFormCopy(submission, { recipients, from });
+  // CHANGE: 2026-11-04 — pass the destination so the global CC is category-scoped.
+  const res = await sendInternalFormCopy(submission, { recipients, from, destination: cleanDestination });
 
   if (res.ok) {
     await col.updateOne(
@@ -255,6 +256,8 @@ export async function processEmailQueue(
     const res = await sendInternalFormCopy(job.submission, {
       recipients: job.recipients,
       from: job.from,
+      // CHANGE: 2026-11-04 — destination-scoped global CC.
+      destination: job.destination,
     });
 
     if (res.ok) {
