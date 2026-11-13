@@ -103,10 +103,20 @@ export default function AdminPaymentsSummary() {
     let amount = 0;
     let gst = 0;
     let discount = 0;
+    let initiated = 0;
+    let completed = 0;
     for (const o of rows) {
       if (Number.isFinite(o.amountPaise)) amount += o.amountPaise;
       if (Number.isFinite(o.gstPaise)) gst += o.gstPaise ?? 0;
       if (Number.isFinite(o.discountPaise)) discount += o.discountPaise ?? 0;
+      // CHANGE: 2026-11-13 — "Initiated" must differ from the Orders card: it now counts
+      // orders that actually reached the gateway (a razorpayOrderId exists), while
+      // "Completed" counts verified/fulfilled. Legacy/manual rows without a gateway id
+      // therefore show up in Orders but not in Initiated — the truthful funnel.
+      if (o.razorpayOrderId) initiated += 1;
+      if (o.status === 'verified' || o.status === 'fulfilled') {
+        completed += 1;
+      }
     }
     return {
       count: rows.length,
@@ -114,6 +124,8 @@ export default function AdminPaymentsSummary() {
       gst,
       discount,
       average: rows.length > 0 ? Math.round(amount / rows.length) : 0,
+      initiated,
+      completed,
     };
   }, [rows]);
 
@@ -268,10 +280,18 @@ export default function AdminPaymentsSummary() {
         ) : (
           <>
             {/* Totals cards */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Orders</p>
                 <p className="mt-2 text-3xl font-black tabular-nums tracking-tight text-slate-900">{totals.count}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Transaction Initiated</p>
+                <p className="mt-2 text-3xl font-black tabular-nums tracking-tight text-amber-600">{totals.initiated}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Transaction Completed</p>
+                <p className="mt-2 text-3xl font-black tabular-nums tracking-tight text-teal-700">{totals.completed}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5">
                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Collected</p>

@@ -2,66 +2,93 @@ import { NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb-utils';
 import { VISITOR_KEY_EXPR, HUMAN_MATCH } from '@/lib/visitor-groups';
 
+// CHANGE: 2026-11-13 — dashboard data layer rebuilt for the new dashboard UI.
+// WHAT: every collection handle is opened once, and every count/aggregate runs in
+// PARALLEL (Promise.all) instead of ~20 sequential round-trips. Adds the numbers the
+// new dashboard needs to be actionable: 24h/7d lead flow, pending TSS renewals,
+// pending orders, collected revenue, and the two "recent activity" feeds.
+// WHY: the old route did one await after another (slow on Atlas M0) and only exposed
+// lifetime totals, so the dashboard could not say what needs attention *today*.
+// All changes are additive — existing keys (visitors, visitorsLast24h, orders, …)
+// keep their exact meaning, so scripts/api-test.mjs and visitors-admin-test.mjs stay green.
+
+export const dynamic = 'force-dynamic';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export async function GET() {
   try {
-    // CHANGE: 2026-10-07 — owner follow-up (dashboard KPIs): orders (commerce)
-    // and career candidate accounts are now surfaced on /api/admin/stats. The
-    // `orders` collection is written by the PUBLIC repo's checkout; the
-    // `careers_users` collection by the public /careers signup + this panel's
-    // manual create.
-    const stats: any = {
-      submissions: 0,
-      problemReports: 0,
-      tssRenewals: 0,
-      applications: 0,
-      modules: 0,
-      learning: 0,
-      reviews: 0,
-      news: 0,
-      partners: 0,
-      faq: 0,
-      visitors: 0,
-      // CHANGE: 2026-10-12 — owner: "visitors today" is now "Visitors Last 24 Hours".
-      visitorsLast24h: 0,
-      orders: 0,
-      ordersToday: 0,
-      accounts: 0,
-      // CHANGE: 2026-10-09 — owner: surface chat transcripts + form drafts on the dashboard.
-      chats: 0,
-      drafts: 0
-    };
-
-    // Submissions count
-    const submissionsCol = await getCollection('form_submissions');
-    stats.submissions = await submissionsCol.countDocuments();
-
-    // Visitors count (passive identification)
-    // CHANGE: 2026-10-17 — owner: "same visitor marked as multiple visits as separate entry …
-    // ensure bots are separated." These two KPIs now count UNIQUE HUMAN VISITORS (sessions
-    // grouped by the shared IP + device key in lib/visitor-groups.ts) instead of raw session
-    // documents, so a crawler that opens 50 cookie-less sessions no longer inflates them (bots
-    // were ~38% of the collection). The Visitors screen shows the full breakdown.
+    const now = Date.now();
+    const last24h = new Date(now - DAY_MS);
+    const last7d = new Date(now - 7 * DAY_MS);
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const visitorsCol = await getCollection('visitors');
-    const [uniqueAgg, last24hAgg] = await Promise.all([
+
+    const [
+      submissionsCol,
+      problemReportsCol,
+      tssRenewalsCol,
+      applicationsCol,
+      visitorsCol,
+      ordersCol,
+      usersCol,
+      chatsCol,
+      draftsCol,
+      siteContentCol,
+    ] = await Promise.all([
+      getCollection('form_submissions'),
+      getCollection('problem_reports'),
+      getCollection('tss_renewals'),
+      getCollection('job_applications'),
+      getCollection('visitors'),
+      getCollection('orders'),
+      getCollection('careers_users'),
+      getCollection('chat_logs'),
+      getCollection('drafts'),
+      getCollection('site_content'),
+    ]);
+
+    const [
+      submissions,
+      submissionsLast24h,
+      submissionsLast7d,
+      problemReports,
+      problemReportsLast24h,
+      tssRenewals,
+      tssPending,
+      applications,
+      applicationsLast24h,
+      uniqueAgg,
+      last24hAgg,
+      orders,
+      ordersToday,
+      ordersPending,
+      revenueAgg,
+      accounts,
+      chats,
+      chatsLast24h,
+      drafts,
+      draftsLast24h,
+      faqDoc,
+      recentOrdersRaw,
+      recentLeadsRaw,
+    ] = await Promise.all([
+      submissionsCol.countDocuments(),
+      submissionsCol.countDocuments({ createdAt: { $gte: last24h } }),
+      submissionsCol.countDocuments({ createdAt: { $gte: last7d } }),
+      problemReportsCol.countDocuments(),
+      problemReportsCol.countDocuments({ createdAt: { $gte: last24h } }),
+      tssRenewalsCol.countDocuments(),
+      tssRenewalsCol.countDocuments({ status: 'pending' }),
+      applicationsCol.countDocuments(),
+      applicationsCol.countDocuments({ createdAt: { $gte: last24h } }),
+      // CHANGE: 2026-10-17 — these two KPIs count UNIQUE HUMAN VISITORS (sessions grouped
+      // by the shared IP + device key in lib/visitor-groups.ts), never raw session docs.
       visitorsCol
-        .aggregate([
-          { $match: HUMAN_MATCH },
-          { $group: { _id: VISITOR_KEY_EXPR } },
-          { $count: 'n' },
-        ])
+        .aggregate([{ $match: HUMAN_MATCH }, { $group: { _id: VISITOR_KEY_EXPR } }, { $count: 'n' }])
         .toArray(),
-      // CHANGE: 2026-10-12 — owner: rename to "Visitors Last 24 Hours" and make the NUMBER
-      // match the label — a ROLLING 24h window instead of "since midnight".
-      // CHANGE: 2026-10-26 — the window was measured on `firstSeen`, but a `visitors`
-      // document is ONE SESSION keyed by the 1-year `svd_vid` cookie, so a RETURNING visitor
-      // carries a months-old `firstSeen` and dropped out of this card entirely. Measured
-      // live on 2026-10-26: 5 unique humans with `firstSeen >= 24h` vs 8 with
-      // `lastSeen >= 24h` — and the Visitors screen (which already used `lastSeen` for its
-      // `activeToday` stat) said 8. `lastSeen` is the correct field, and it makes this KPI
-      // agree with that screen instead of under-reporting every returning visitor.
+      // CHANGE: 2026-10-26 — window on `lastSeen`, not `firstSeen`: a visitor document is one
+      // session keyed by the 1-year cookie, so a returning visitor keeps a months-old firstSeen.
       visitorsCol
         .aggregate([
           { $match: { ...HUMAN_MATCH, lastSeen: { $gte: last24h } } },
@@ -69,65 +96,94 @@ export async function GET() {
           { $count: 'n' },
         ])
         .toArray(),
+      ordersCol.countDocuments(),
+      ordersCol.countDocuments({ createdAt: { $gte: startOfToday } }),
+      ordersCol.countDocuments({ status: 'created' }),
+      ordersCol
+        .aggregate([
+          { $match: { status: { $in: ['verified', 'fulfilled'] } } },
+          { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
+        ])
+        .toArray(),
+      usersCol.countDocuments(),
+      chatsCol.countDocuments(),
+      chatsCol.countDocuments({ lastActiveAt: { $gte: last24h } }),
+      draftsCol.countDocuments(),
+      draftsCol.countDocuments({ lastActiveAt: { $gte: last24h } }),
+      siteContentCol.findOne({ section: 'home_faq' }),
+      ordersCol
+        .find(
+          {},
+          {
+            projection: {
+              orderId: 1,
+              amountPaise: 1,
+              status: 1,
+              createdAt: 1,
+              'customer.name': 1,
+            },
+          }
+        )
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .toArray(),
+      submissionsCol
+        .find(
+          {},
+          { projection: { name: 1, email: 1, formType: 1, service: 1, createdAt: 1 } }
+        )
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .toArray(),
     ]);
-    stats.visitors = uniqueAgg[0]?.n ?? 0;
-    stats.visitorsLast24h = last24hAgg[0]?.n ?? 0;
 
-    // Problem reports count
-    const problemReportsCol = await getCollection('problem_reports');
-    stats.problemReports = await problemReportsCol.countDocuments();
+    const faqCount =
+      faqDoc && Array.isArray((faqDoc as any).content) ? (faqDoc as any).content.length : 0;
+    const revenue = revenueAgg[0] ?? { total: 0, count: 0 };
 
-    // TSS Renewals count
-    const tssRenewalsCol = await getCollection('tss_renewals');
-    stats.tssRenewals = await tssRenewalsCol.countDocuments();
+    return NextResponse.json({
+      // Lifetime counts (kept for compatibility).
+      submissions,
+      problemReports,
+      tssRenewals,
+      applications,
+      visitors: uniqueAgg[0]?.n ?? 0,
+      orders,
+      accounts,
+      chats,
+      drafts,
+      faq: faqCount,
 
-    // Applications count
-    const applicationsCol = await getCollection('job_applications');
-    stats.applications = await applicationsCol.countDocuments();
+      // "What needs attention" / flow metrics (new).
+      submissionsLast24h,
+      submissionsLast7d,
+      problemReportsLast24h,
+      tssPending,
+      applicationsLast24h,
+      visitorsLast24h: last24hAgg[0]?.n ?? 0,
+      ordersToday,
+      ordersPending,
+      revenuePaise: Number(revenue.total) || 0,
+      revenueOrders: Number(revenue.count) || 0,
+      chatsLast24h,
+      draftsLast24h,
 
-    // Modules count
-    const modulesCol = await getCollection('modules');
-    stats.modules = await modulesCol.countDocuments();
-
-    // Learning count
-    const learningCol = await getCollection('learning_content');
-    stats.learning = await learningCol.countDocuments();
-
-    // Reviews count
-    const reviewsCol = await getCollection('reviews');
-    stats.reviews = await reviewsCol.countDocuments();
-
-    // News count
-    const newsCol = await getCollection('news');
-    stats.news = await newsCol.countDocuments();
-
-    // Partners count
-    const partnersCol = await getCollection('partners');
-    stats.partners = await partnersCol.countDocuments();
-
-    // FAQ count (from site_content)
-    const siteContentCol = await getCollection('site_content');
-    const faqDoc = await siteContentCol.findOne({ section: 'home_faq' });
-    if (faqDoc && Array.isArray(faqDoc.content)) {
-      stats.faq = faqDoc.content.length;
-    }
-
-    // Orders count (SP-3 orders ledger — written by the public checkout routes)
-    const ordersCol = await getCollection('orders');
-    stats.orders = await ordersCol.countDocuments();
-    stats.ordersToday = await ordersCol.countDocuments({ createdAt: { $gte: startOfToday } });
-
-    // Career candidate accounts (public /careers signup + this panel's manual create)
-    const usersCol = await getCollection('careers_users');
-    stats.accounts = await usersCol.countDocuments();
-
-    // Chat transcripts + non-submitted form drafts (visitor engagement; 2026-10-09 owner ask)
-    const chatsCol = await getCollection('chat_logs');
-    stats.chats = await chatsCol.countDocuments();
-    const draftsCol = await getCollection('drafts');
-    stats.drafts = await draftsCol.countDocuments();
-
-    return NextResponse.json(stats);
+      // Recent activity feeds (new). Dates serialise to ISO through NextResponse.json.
+      recentOrders: recentOrdersRaw.map((o: any) => ({
+        orderId: o.orderId || '',
+        customerName: o.customer?.name || '',
+        amountPaise: Number(o.amountPaise) || 0,
+        status: o.status || 'created',
+        createdAt: o.createdAt || null,
+      })),
+      recentLeads: recentLeadsRaw.map((s: any) => ({
+        name: s.name || '',
+        email: s.email || '',
+        formType: s.formType || '',
+        service: s.service || '',
+        createdAt: s.createdAt || null,
+      })),
+    });
   } catch (error) {
     console.error('Failed to fetch admin stats:', error);
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });

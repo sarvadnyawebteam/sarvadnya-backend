@@ -12,7 +12,7 @@ interface AdminSidebarProps {
 const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
   const pathname = usePathname();
   const [adminLogo, setAdminLogo] = useState<string | null>(null);
-  const [version, setVersion] = useState<string>('v1.1.389');
+  const [version, setVersion] = useState<string>('v1.1.390');
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -117,7 +117,7 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
               }`}
             >
               {item.icon && (
-                <svg className={`w-5 h-5 flex-shrink-0 transition-colors ${pathname === item.href ? 'text-[#006569]' : 'group-hover:text-[#006569]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={`w-5 h-5 flex-shrink-0 transition-colors ${pathname === item.href ? 'text-white' : 'group-hover:text-[#006569]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={item.icon} />
                 </svg>
               )}

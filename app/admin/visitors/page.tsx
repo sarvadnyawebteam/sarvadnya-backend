@@ -717,7 +717,7 @@ export default function AdminVisitors() {
                 <div className="bg-slate-50 px-3 py-2.5 border border-slate-200">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Conversion</p>
                   {selectedItem.lastFormAt ? (
-                    <p className="text-sm font-black text-emerald-600">● Converted {formatDateTime(selectedItem.lastFormAt)}</p>
+                    <p className="text-sm font-black text-teal-700">● Converted {formatDateTime(selectedItem.lastFormAt)}</p>
                   ) : (
                     <p className="text-sm font-semibold text-slate-400">None recorded</p>
                   )}
