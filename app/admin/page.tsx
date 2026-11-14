@@ -23,13 +23,25 @@ import { toDateMs } from '@/lib/date-coerce';
 //   * Recent orders / recent leads move straight below it, so activity is on screen
 //     one instead of three.
 //   * The three 5-card "lifetime totals" groups (15 tiles, most of them repeats of the
-//     headline numbers) collapse into a single compact "All totals" list.
+//     headline numbers) collapse into a single compact "Payments & careers" list.
 //   * The System-health card is deleted — the header chip already carries service,
 //     database and version, and the timestamp moved under the header.
 //   * The Quick-links footer is deleted — the sidebar is the navigation.
 //   * "Needs attention" lost its per-row description line and only shows items that
 //     actually have a count, so it stops being a wall of zeros.
 // Net effect: the whole dashboard fits in roughly one desktop screen instead of four.
+//
+// CHANGE: 2026-11-14 (follow-up) — owner: "i dontt want payment or candidate on top,
+// else ensure all stats are smaller on top without scroll on desktop" + "have a last
+// updated tag on refresh button". WHAT:
+//   * The headline row is no longer four/six big cards. It is a 14-tile MINI grid
+//     (value + label, no icon, no hint) in `grid-cols-2 sm:3 md:4 xl:7`, so every
+//     non-financial stat is on screen without scrolling on a desktop.
+//   * Payments (orders / awaiting / paid / revenue) and careers (applications /
+//     candidate accounts) are removed from that row and live in the "Payments &
+//     careers" card at the bottom, next to recent leads.
+//   * TSS pending, bug reports 24h and leads 24h go amber when non-zero.
+//   * The last-updated timestamp is a caption under the Refresh button.
 
 type HealthStatus = {
   status: string;
@@ -113,19 +125,10 @@ const STATUS_STYLES: Record<string, string> = {
   created: 'bg-amber-50 text-amber-700 border-amber-100',
 };
 
+// CHANGE: 2026-11-14 (follow-up) — the KPI tiles no longer carry icons, so only the two
+// glyphs still in use remain: the Refresh spinner and the error-banner warning.
 const ICONS = {
-  revenue: 'M12 3v18m4.5-13.5C16.5 6.12 14.49 5 12 5S7.5 6.12 7.5 7.5 9.51 10 12 10s4.5 1.12 4.5 2.5S14.49 15 12 15s-4.5-1.12-4.5-2.5',
-  orders: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z',
-  leads: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-  visitors: 'M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.5 0 4-2.5 4-9s-1.5-9-4-9-4 2.5-4 9 1.5 9 4 9zM3.5 12h17',
-  submissions: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
   bugs: 'M12 9v2m0 4h.01M4.75 20h14.5a2.25 2.25 0 001.95-3.38L14.2 4.62a2.25 2.25 0 00-3.9 0L2.8 16.62A2.25 2.25 0 004.75 20z',
-  renewals: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
-  careers: 'M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-  accounts: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-  chats: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
-  drafts: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
-  clock: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z',
   refresh: 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5',
 } as const;
 
@@ -146,49 +149,35 @@ function Icon({ path, className = 'w-4 h-4' }: { path: string; className?: strin
   );
 }
 
-type StatCardProps = {
+type StatTileProps = {
   label: string;
   value: React.ReactNode;
-  hint?: string;
-  href?: string;
-  icon: string;
-  iconTone: string;
+  href: string;
+  warn?: boolean;
 };
 
-// CHANGE: 2026-11-14 — the KPI tile is now a DENSE horizontal tile (icon · value ·
-// label · hint) instead of a tall centred block. Six of these fit in one row on a
-// laptop, which is what lets the important numbers live above the fold.
-function StatCard({ label, value, hint, href, icon, iconTone }: StatCardProps) {
-  const title = hint ? `${label} — ${hint}` : label;
-
-  const body = (
-    <>
-      <span
-        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${iconTone}`}
-      >
-        <Icon path={icon} />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-base font-black leading-none tracking-tight text-slate-900 tabular-nums sm:text-lg">
-          {value}
-        </span>
-        <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-          {label}
-        </span>
-        {hint && (
-          <span className="block truncate text-[10px] font-medium text-slate-500">{hint}</span>
-        )}
-      </span>
-    </>
-  );
-
-  const className =
-    'group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-1';
-
-  if (!href) return <div className={className}>{body}</div>;
+// CHANGE: 2026-11-14 (follow-up) — the headline tiles are now MINI tiles: one value and
+// one label, no icon, no hint. Fourteen of them fit in two rows on a desktop, so every
+// non-financial stat is above the fold instead of half of them being below it. Payment
+// and careers numbers were moved out of this row entirely (owner's ask) and live in the
+// "Payments & careers" card at the bottom.
+function StatTile({ label, value, href, warn }: StatTileProps) {
   return (
-    <Link href={href} className={className} aria-label={title} title={title}>
-      {body}
+    <Link
+      href={href}
+      title={label}
+      className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 transition-colors hover:border-teal-200 hover:bg-teal-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-1"
+    >
+      <span
+        className={`block truncate text-base font-black leading-none tabular-nums ${
+          warn ? 'text-amber-700' : 'text-slate-900'
+        }`}
+      >
+        {value}
+      </span>
+      <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">
+        {label}
+      </span>
     </Link>
   );
 }
@@ -200,8 +189,8 @@ type MiniItem = {
   href: string;
 };
 
-// CHANGE: 2026-11-14 — one compact label · value · hint row. The nine long-tail
-// numbers that used to be nine full cards now share a single card, in two columns.
+// CHANGE: 2026-11-14 — one compact label · value · hint row. Numbers that used to be
+// full-width cards now share a single card, in two columns.
 function MiniStat({ item }: { item: MiniItem }) {
   return (
     <Link
@@ -217,7 +206,6 @@ function MiniStat({ item }: { item: MiniItem }) {
     </Link>
   );
 }
-
 
 function Skeleton({ className }: { className: string }) {
   return <div className={`animate-pulse rounded-lg bg-slate-200/70 ${className}`} aria-hidden="true" />;
@@ -296,29 +284,33 @@ export default function AdminDashboard() {
     ] as { label: string; count: number; href: string }[]
   ).filter((item) => item.count > 0);
 
-  // CHANGE: 2026-11-14 — the long-tail numbers that used to be 15 full tiles in three
-  // groups (with several repeats of the headline KPIs) now live in ONE compact list.
+  // CHANGE: 2026-11-14 (follow-up) — the top grid now carries every non-financial stat,
+  // so this card keeps only what the owner asked to keep OFF the headline row:
+  // payments and careers. Same compact label · value · hint rows.
   const ready = !loading && !!s;
   const num = (n: number | undefined) => (ready ? n ?? 0 : '—');
 
   const totals: MiniItem[] = [
     {
-      label: 'Contact submissions',
-      value: num(s?.submissions),
-      hint: ready ? `${s?.submissionsLast24h ?? 0}/24h` : undefined,
-      href: '/admin/submissions',
+      label: 'Orders (total)',
+      value: num(s?.orders),
+      hint: ready ? `${s?.ordersToday ?? 0} today` : undefined,
+      href: '/admin/payments',
     },
     {
-      label: 'Bug & issue reports',
-      value: num(s?.problemReports),
-      hint: ready ? `${s?.problemReportsLast24h ?? 0}/24h` : undefined,
-      href: '/admin/problem-reports',
+      label: 'Awaiting payment',
+      value: num(s?.ordersPending),
+      href: '/admin/payments',
     },
     {
-      label: 'TSS renewals',
-      value: num(s?.tssRenewals),
-      hint: ready ? `${s?.tssPending ?? 0} pending` : undefined,
-      href: '/admin/tss-renewals',
+      label: 'Paid orders',
+      value: num(s?.revenueOrders),
+      href: '/admin/payments/summary',
+    },
+    {
+      label: 'Revenue collected',
+      value: ready ? formatMoney(s?.revenuePaise ?? 0) : '—',
+      href: '/admin/payments/summary',
     },
     {
       label: 'Job applications',
@@ -330,35 +322,6 @@ export default function AdminDashboard() {
       label: 'Candidate accounts',
       value: num(s?.accounts),
       href: '/admin/careers',
-    },
-    {
-      label: 'Chat transcripts',
-      value: num(s?.chats),
-      hint: ready ? `${s?.chatsLast24h ?? 0}/24h` : undefined,
-      href: '/admin/chats',
-    },
-    {
-      label: 'Form drafts',
-      value: num(s?.drafts),
-      hint: ready ? `${s?.draftsLast24h ?? 0}/24h` : undefined,
-      href: '/admin/drafts',
-    },
-    {
-      label: 'FAQ entries',
-      value: num(s?.faq),
-      href: '/admin/faq',
-    },
-    {
-      label: 'Orders (total)',
-      value: num(s?.orders),
-      hint: ready ? `${s?.ordersToday ?? 0} today` : undefined,
-      href: '/admin/payments',
-    },
-    {
-      label: 'Paid orders',
-      value: num(s?.revenueOrders),
-      hint: ready ? formatMoney(s?.revenuePaise ?? 0) : undefined,
-      href: '/admin/payments/summary',
     },
   ];
 
@@ -453,116 +416,90 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 1 · Headline KPIs — the six numbers that decide the day, first in view.
-          CHANGE: 2026-11-14 — was four tall cards; now six dense tiles in one row. */}
-      <section aria-label="Key performance indicators">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      {/* 1 · Every non-financial stat, as mini tiles — two rows on a desktop, so nothing
+          important needs a scroll. CHANGE: 2026-11-14 (follow-up) — owner: "i dontt want
+          payment or candidate on top, else ensure all stats are smaller on top without
+          scroll on desktop". Payments + careers moved to the "Payments & careers" card below. */}
+      <section aria-label="All site statistics">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
           {loading || !s ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-              >
-                <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-                <div className="min-w-0 flex-grow">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="mt-2 h-2.5 w-16" />
-                </div>
+            Array.from({ length: 14 }).map((_, i) => (
+              <div key={i} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                <Skeleton className="h-4 w-10" />
+                <Skeleton className="mt-2 h-2.5 w-16" />
               </div>
             ))
           ) : (
             <>
-              <StatCard
-                label="Revenue"
-                value={formatMoney(s.revenuePaise)}
-                hint={`${s.revenueOrders} paid order${s.revenueOrders === 1 ? '' : 's'}`}
-                href="/admin/payments/summary"
-                icon={ICONS.revenue}
-                iconTone="bg-teal-50 text-teal-700"
-              />
-              <StatCard
-                label="New leads · 24h"
+              <StatTile
+                label="Leads · 24h"
                 value={s.submissionsLast24h}
-                hint={`${s.submissionsLast7d} in 7 days`}
                 href="/admin/submissions"
-                icon={ICONS.leads}
-                iconTone="bg-amber-50 text-amber-700"
+                warn={s.submissionsLast24h > 0}
               />
-              <StatCard
-                label="Orders today"
-                value={s.ordersToday}
-                hint={`${s.orders} total · ${s.ordersPending} awaiting`}
-                href="/admin/payments"
-                icon={ICONS.orders}
-                iconTone="bg-sky-50 text-sky-700"
+              <StatTile label="Leads · 7d" value={s.submissionsLast7d} href="/admin/submissions" />
+              <StatTile label="Submissions" value={s.submissions} href="/admin/submissions" />
+              <StatTile
+                label="Bug reports · 24h"
+                value={s.problemReportsLast24h}
+                href="/admin/problem-reports"
+                warn={s.problemReportsLast24h > 0}
               />
-              <StatCard
+              <StatTile
+                label="Bug reports"
+                value={s.problemReports}
+                href="/admin/problem-reports"
+              />
+              <StatTile
                 label="TSS pending"
                 value={s.tssPending}
-                hint={`${s.tssRenewals} requests total`}
                 href="/admin/tss-renewals"
-                icon={ICONS.renewals}
-                iconTone="bg-orange-50 text-orange-700"
+                warn={s.tssPending > 0}
               />
-              <StatCard
-                label="Visitors · 24h"
-                value={s.visitorsLast24h}
-                hint={`${s.visitors} unique all-time`}
-                href="/admin/visitors"
-                icon={ICONS.visitors}
-                iconTone="bg-indigo-50 text-indigo-700"
-              />
-              <StatCard
-                label="Chats · 24h"
-                value={s.chatsLast24h}
-                hint={`${s.chats} transcripts total`}
-                href="/admin/chats"
-                icon={ICONS.chats}
-                iconTone="bg-violet-50 text-violet-700"
-              />
+              <StatTile label="TSS renewals" value={s.tssRenewals} href="/admin/tss-renewals" />
+              <StatTile label="Visitors · 24h" value={s.visitorsLast24h} href="/admin/visitors" />
+              <StatTile label="Unique visitors" value={s.visitors} href="/admin/visitors" />
+              <StatTile label="Chats · 24h" value={s.chatsLast24h} href="/admin/chats" />
+              <StatTile label="Transcripts" value={s.chats} href="/admin/chats" />
+              <StatTile label="Drafts · 24h" value={s.draftsLast24h} href="/admin/drafts" />
+              <StatTile label="Form drafts" value={s.drafts} href="/admin/drafts" />
+              <StatTile label="FAQ entries" value={s.faq} href="/admin/faq" />
             </>
           )}
         </div>
       </section>
 
-      {/* 2 · Recent orders (2/3) + Needs attention (1/3).
+      {/* 2 · Recent leads (2/3) + Needs attention (1/3).
           CHANGE: 2026-11-14 — activity moved up from the bottom of a four-screen
           page; the System-health card is gone (the header chip already shows
-          service, database and version). */}
+          service, database and version).
+          CHANGE: 2026-11-14 (follow-up) — leads come before orders: the owner does
+          not want payment content high on the page, so orders now sit last. */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <RecentPanel
-            title="Recent orders"
-            href="/admin/payments"
-            hrefLabel="Open payments"
+            title="Recent leads"
+            href="/admin/submissions"
+            hrefLabel="Open submissions"
             loading={loading}
-            empty={!loading && (s?.recentOrders?.length ?? 0) === 0}
-            emptyText="No orders yet."
+            empty={!loading && (s?.recentLeads?.length ?? 0) === 0}
+            emptyText="No form submissions yet."
           >
-            {(s?.recentOrders ?? []).map((o) => (
+            {(s?.recentLeads ?? []).map((lead, i) => (
               <li
-                key={o.orderId || `${o.createdAt}-${o.amountPaise}`}
+                key={`${lead.email}-${lead.createdAt}-${i}`}
                 className="flex items-center justify-between gap-3 px-3 py-2.5"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-bold text-slate-800">
-                    {o.customerName || 'Guest customer'}
+                    {lead.name || lead.email || 'Anonymous lead'}
                   </span>
-                  <span className="block truncate font-mono text-[11px] text-slate-400">
-                    {o.orderId || '—'} · {formatRelative(o.createdAt)}
+                  <span className="block truncate text-[11px] text-slate-400">
+                    {[lead.formType, lead.service].filter(Boolean).join(' · ') || 'General enquiry'}
                   </span>
                 </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm font-black tabular-nums text-slate-800">
-                    {formatMoney(o.amountPaise)}
-                  </span>
-                  <span
-                    className={`rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
-                      STATUS_STYLES[o.status] || 'bg-slate-50 text-slate-500 border-slate-100'
-                    }`}
-                  >
-                    {o.status}
-                  </span>
+                <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                  {formatRelative(lead.createdAt)}
                 </span>
               </li>
             ))}
@@ -612,35 +549,45 @@ export default function AdminDashboard() {
         </section>
       </div>
 
-      {/* 3 · Recent leads (2/3) + the compact long-tail totals (1/3).
+      {/* 3 · Recent orders (2/3) + payments & careers (1/3) — the numbers the owner asked
+          to keep OFF the headline row, deliberately LAST on the page.
           CHANGE: 2026-11-14 — this replaces the three 5-card "lifetime totals" groups
           (15 tiles, several repeating the headline KPIs). The Quick-links footer is
           gone as well — the sidebar is the navigation. */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <RecentPanel
-            title="Recent leads"
-            href="/admin/submissions"
-            hrefLabel="Open submissions"
+            title="Recent orders"
+            href="/admin/payments"
+            hrefLabel="Open payments"
             loading={loading}
-            empty={!loading && (s?.recentLeads?.length ?? 0) === 0}
-            emptyText="No form submissions yet."
+            empty={!loading && (s?.recentOrders?.length ?? 0) === 0}
+            emptyText="No orders yet."
           >
-            {(s?.recentLeads ?? []).map((lead, i) => (
+            {(s?.recentOrders ?? []).map((o) => (
               <li
-                key={`${lead.email}-${lead.createdAt}-${i}`}
+                key={o.orderId || `${o.createdAt}-${o.amountPaise}`}
                 className="flex items-center justify-between gap-3 px-3 py-2.5"
               >
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-bold text-slate-800">
-                    {lead.name || lead.email || 'Anonymous lead'}
+                    {o.customerName || 'Guest customer'}
                   </span>
-                  <span className="block truncate text-[11px] text-slate-400">
-                    {[lead.formType, lead.service].filter(Boolean).join(' · ') || 'General enquiry'}
+                  <span className="block truncate font-mono text-[11px] text-slate-400">
+                    {o.orderId || '—'} · {formatRelative(o.createdAt)}
                   </span>
                 </span>
-                <span className="shrink-0 text-[11px] font-semibold text-slate-400">
-                  {formatRelative(lead.createdAt)}
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-black tabular-nums text-slate-800">
+                    {formatMoney(o.amountPaise)}
+                  </span>
+                  <span
+                    className={`rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
+                      STATUS_STYLES[o.status] || 'bg-slate-50 text-slate-500 border-slate-100'
+                    }`}
+                  >
+                    {o.status}
+                  </span>
                 </span>
               </li>
             ))}
@@ -649,12 +596,12 @@ export default function AdminDashboard() {
 
         <section
           className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
-          aria-label="All totals"
+          aria-label="Payments and careers"
         >
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5">
-            <h2 className="text-sm font-black text-slate-800">All totals</h2>
+            <h2 className="text-sm font-black text-slate-800">Payments &amp; careers</h2>
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Lifetime
+              Below the stats
             </span>
           </div>
           <div className="grid grid-cols-1 gap-x-4 p-1.5 sm:grid-cols-2">
