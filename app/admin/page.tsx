@@ -14,6 +14,22 @@ import { toDateMs } from '@/lib/date-coerce';
 //   * shows system health as a readable panel instead of tiny chips.
 // The API change that feeds it is app/api/admin/stats/route.ts (parallel queries +
 // 24h/7d flow, pending counts, revenue and the two recent-activity feeds).
+//
+// CHANGE: 2026-11-14 — layout rebalanced after owner feedback ("all important stats
+// are below, too much scrolling, too many unwanted modules, the weaker stats come
+// first"). WHAT:
+//   * ONE dense six-tile KPI row is now the first thing on the page (revenue, leads
+//     24h, orders today, TSS pending, visitors 24h, chats 24h) — no duplicate numbers.
+//   * Recent orders / recent leads move straight below it, so activity is on screen
+//     one instead of three.
+//   * The three 5-card "lifetime totals" groups (15 tiles, most of them repeats of the
+//     headline numbers) collapse into a single compact "All totals" list.
+//   * The System-health card is deleted — the header chip already carries service,
+//     database and version, and the timestamp moved under the header.
+//   * The Quick-links footer is deleted — the sidebar is the navigation.
+//   * "Needs attention" lost its per-row description line and only shows items that
+//     actually have a count, so it stops being a wall of zeros.
+// Net effect: the whole dashboard fits in roughly one desktop screen instead of four.
 
 type HealthStatus = {
   status: string;
@@ -77,17 +93,6 @@ function formatMoney(paise: number | undefined): string {
   return inr.format(paise / 100);
 }
 
-function formatDateTime(value: string | null | undefined): string {
-  const ms = toDateMs(value);
-  if (!Number.isFinite(ms)) return '—';
-  return new Date(ms).toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 function formatRelative(value: string | null | undefined): string {
   const ms = toDateMs(value);
   if (!Number.isFinite(ms)) return '—';
@@ -147,80 +152,72 @@ type StatCardProps = {
   hint?: string;
   href?: string;
   icon: string;
-  tone: string;
   iconTone: string;
 };
 
-function StatCard({ label, value, hint, href, icon, tone, iconTone }: StatCardProps) {
+// CHANGE: 2026-11-14 — the KPI tile is now a DENSE horizontal tile (icon · value ·
+// label · hint) instead of a tall centred block. Six of these fit in one row on a
+// laptop, which is what lets the important numbers live above the fold.
+function StatCard({ label, value, hint, href, icon, iconTone }: StatCardProps) {
+  const title = hint ? `${label} — ${hint}` : label;
+
   const body = (
     <>
-      <div className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${iconTone}`}>
+      <span
+        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${iconTone}`}
+      >
         <Icon path={icon} />
-      </div>
-      <div className="mt-3">
-        <p className="text-2xl font-black leading-none tracking-tight text-slate-900 tabular-nums">
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-base font-black leading-none tracking-tight text-slate-900 tabular-nums sm:text-lg">
           {value}
-        </p>
-        <p className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+        </span>
+        <span className="mt-1 block truncate text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
           {label}
-        </p>
-        {hint && <p className="mt-1 text-xs font-medium text-slate-400">{hint}</p>}
-      </div>
+        </span>
+        {hint && (
+          <span className="block truncate text-[10px] font-medium text-slate-500">{hint}</span>
+        )}
+      </span>
     </>
   );
 
-  const className = `group flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md ${tone}`;
+  const className =
+    'group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-1';
 
   if (!href) return <div className={className}>{body}</div>;
   return (
-    <Link href={href} className={className} aria-label={`${label} — open ${href}`}>
+    <Link href={href} className={className} aria-label={title} title={title}>
       {body}
     </Link>
   );
 }
 
-type GroupItem = {
+type MiniItem = {
   label: string;
   value: React.ReactNode;
-  hint: string;
+  hint?: string;
   href: string;
-  icon: string;
 };
 
-function MetricGroup({ title, items }: { title: string; items: GroupItem[] }) {
+// CHANGE: 2026-11-14 — one compact label · value · hint row. The nine long-tail
+// numbers that used to be nine full cards now share a single card, in two columns.
+function MiniStat({ item }: { item: MiniItem }) {
   return (
-    <section>
-      <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</h2>
-        <div className="h-px flex-grow bg-slate-200" />
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-        {items.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="group flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3.5 transition-all hover:border-teal-200 hover:bg-teal-50/30 hover:shadow-sm"
-          >
-            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500 transition-colors group-hover:bg-teal-50 group-hover:text-teal-700">
-              <Icon path={item.icon} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-lg font-black leading-none text-slate-900 tabular-nums">
-                {item.value}
-              </span>
-              <span className="mt-1 block text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                {item.label}
-              </span>
-              <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-400">
-                {item.hint}
-              </span>
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
+    <Link
+      href={item.href}
+      title={item.hint ? `${item.label} — ${item.hint}` : item.label}
+      className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-teal-50/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-teal-400"
+    >
+      <span className="min-w-0 truncate text-xs font-semibold text-slate-600">{item.label}</span>
+      <span className="flex shrink-0 items-baseline gap-1.5">
+        <span className="text-sm font-black text-slate-900 tabular-nums">{item.value}</span>
+        {item.hint && <span className="text-[10px] font-medium text-slate-500">{item.hint}</span>}
+      </span>
+    </Link>
   );
 }
+
 
 function Skeleton({ className }: { className: string }) {
   return <div className={`animate-pulse rounded-lg bg-slate-200/70 ${className}`} aria-hidden="true" />;
@@ -271,44 +268,110 @@ export default function AdminDashboard() {
   const dbConnected = health?.mongodb === 'connected';
   const s = stats;
 
-  const attention = [
+  // CHANGE: 2026-11-14 — only rows that actually have a count are rendered, and the
+  // per-row description line is gone. The queue is a short action list now, not a
+  // 4-row block of zeros with prose.
+  const attention = (
+    [
+      {
+        label: 'TSS renewals waiting',
+        count: s?.tssPending ?? 0,
+        href: '/admin/tss-renewals',
+      },
+      {
+        label: 'Orders awaiting payment',
+        count: s?.ordersPending ?? 0,
+        href: '/admin/payments',
+      },
+      {
+        label: 'Bug reports · last 24h',
+        count: s?.problemReportsLast24h ?? 0,
+        href: '/admin/problem-reports',
+      },
+      {
+        label: 'New leads · last 24h',
+        count: s?.submissionsLast24h ?? 0,
+        href: '/admin/submissions',
+      },
+    ] as { label: string; count: number; href: string }[]
+  ).filter((item) => item.count > 0);
+
+  // CHANGE: 2026-11-14 — the long-tail numbers that used to be 15 full tiles in three
+  // groups (with several repeats of the headline KPIs) now live in ONE compact list.
+  const ready = !loading && !!s;
+  const num = (n: number | undefined) => (ready ? n ?? 0 : '—');
+
+  const totals: MiniItem[] = [
     {
-      label: 'TSS renewals waiting',
-      count: s?.tssPending ?? 0,
-      description: 'Renewal requests still in the pending state.',
-      href: '/admin/tss-renewals',
+      label: 'Contact submissions',
+      value: num(s?.submissions),
+      hint: ready ? `${s?.submissionsLast24h ?? 0}/24h` : undefined,
+      href: '/admin/submissions',
     },
     {
-      label: 'Orders awaiting payment',
-      count: s?.ordersPending ?? 0,
-      description: 'Created but not verified or fulfilled.',
-      href: '/admin/payments',
-    },
-    {
-      label: 'Bug reports in last 24h',
-      count: s?.problemReportsLast24h ?? 0,
-      description: 'New issue reports from the public site.',
+      label: 'Bug & issue reports',
+      value: num(s?.problemReports),
+      hint: ready ? `${s?.problemReportsLast24h ?? 0}/24h` : undefined,
       href: '/admin/problem-reports',
     },
     {
-      label: 'New leads in last 24h',
-      count: s?.submissionsLast24h ?? 0,
-      description: 'Contact, quote and callback form entries.',
-      href: '/admin/submissions',
+      label: 'TSS renewals',
+      value: num(s?.tssRenewals),
+      hint: ready ? `${s?.tssPending ?? 0} pending` : undefined,
+      href: '/admin/tss-renewals',
+    },
+    {
+      label: 'Job applications',
+      value: num(s?.applications),
+      hint: ready ? `${s?.applicationsLast24h ?? 0}/24h` : undefined,
+      href: '/admin/careers',
+    },
+    {
+      label: 'Candidate accounts',
+      value: num(s?.accounts),
+      href: '/admin/careers',
+    },
+    {
+      label: 'Chat transcripts',
+      value: num(s?.chats),
+      hint: ready ? `${s?.chatsLast24h ?? 0}/24h` : undefined,
+      href: '/admin/chats',
+    },
+    {
+      label: 'Form drafts',
+      value: num(s?.drafts),
+      hint: ready ? `${s?.draftsLast24h ?? 0}/24h` : undefined,
+      href: '/admin/drafts',
+    },
+    {
+      label: 'FAQ entries',
+      value: num(s?.faq),
+      href: '/admin/faq',
+    },
+    {
+      label: 'Orders (total)',
+      value: num(s?.orders),
+      hint: ready ? `${s?.ordersToday ?? 0} today` : undefined,
+      href: '/admin/payments',
+    },
+    {
+      label: 'Paid orders',
+      value: num(s?.revenueOrders),
+      hint: ready ? formatMoney(s?.revenuePaise ?? 0) : undefined,
+      href: '/admin/payments/summary',
     },
   ];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <div className="mx-auto max-w-7xl space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-teal-700">
             Sarvadnya Infotech
           </p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">Dashboard</h1>
-          <p className="mt-1 max-w-xl text-sm text-slate-500">
-            A live view of leads, payments, visitor activity and content health.
-          </p>
+          <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900">
+            Dashboard
+          </h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -340,22 +403,30 @@ export default function AdminDashboard() {
             </span>
           </div>
 
-          <button
-            onClick={fetchData}
-            disabled={refreshing}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#006569] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-teal-900/10 transition-all hover:bg-[#045A57] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Icon path={ICONS.refresh} className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={fetchData}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#006569] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-teal-900/10 transition-all hover:bg-[#045A57] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Icon path={ICONS.refresh} className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+            {/* CHANGE: 2026-11-14 — owner asked for the "last updated" tag ON the refresh
+                control, so the timestamp is now a caption under the button instead of its
+                own line under the header. Kept outside the <button> so it is not clickable
+                text and screen readers get it as plain status text. */}
+            <span className="pr-1 text-[10px] font-semibold text-slate-500">
+              {lastUpdated
+                ? `Updated ${lastUpdated.toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}`
+                : 'Not updated yet'}
+            </span>
+          </div>
         </div>
       </header>
-
-      {lastUpdated && (
-        <p className="-mt-3 text-right text-[11px] font-medium text-slate-400">
-          Last updated {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-        </p>
-      )}
 
       {error && (
         <div
@@ -382,366 +453,217 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Headline KPIs */}
+      {/* 1 · Headline KPIs — the six numbers that decide the day, first in view.
+          CHANGE: 2026-11-14 — was four tall cards; now six dense tiles in one row. */}
       <section aria-label="Key performance indicators">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
           {loading || !s ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <Skeleton className="h-9 w-9 rounded-xl" />
-                <Skeleton className="mt-3 h-6 w-24" />
-                <Skeleton className="mt-2 h-3 w-32" />
+            Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+              >
+                <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-grow">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="mt-2 h-2.5 w-16" />
+                </div>
               </div>
             ))
           ) : (
             <>
               <StatCard
-                label="Revenue collected"
+                label="Revenue"
                 value={formatMoney(s.revenuePaise)}
                 hint={`${s.revenueOrders} paid order${s.revenueOrders === 1 ? '' : 's'}`}
                 href="/admin/payments/summary"
                 icon={ICONS.revenue}
-                tone=""
                 iconTone="bg-teal-50 text-teal-700"
               />
               <StatCard
-                label="Orders"
-                value={s.orders}
-                hint={`${s.ordersToday} today · ${s.ordersPending} awaiting payment`}
-                href="/admin/payments"
-                icon={ICONS.orders}
-                tone=""
-                iconTone="bg-sky-50 text-sky-700"
-              />
-              <StatCard
-                label="New leads (24h)"
+                label="New leads · 24h"
                 value={s.submissionsLast24h}
-                hint={`${s.submissionsLast7d} in the last 7 days`}
+                hint={`${s.submissionsLast7d} in 7 days`}
                 href="/admin/submissions"
                 icon={ICONS.leads}
-                tone=""
                 iconTone="bg-amber-50 text-amber-700"
               />
               <StatCard
-                label="Visitors (24h)"
+                label="Orders today"
+                value={s.ordersToday}
+                hint={`${s.orders} total · ${s.ordersPending} awaiting`}
+                href="/admin/payments"
+                icon={ICONS.orders}
+                iconTone="bg-sky-50 text-sky-700"
+              />
+              <StatCard
+                label="TSS pending"
+                value={s.tssPending}
+                hint={`${s.tssRenewals} requests total`}
+                href="/admin/tss-renewals"
+                icon={ICONS.renewals}
+                iconTone="bg-orange-50 text-orange-700"
+              />
+              <StatCard
+                label="Visitors · 24h"
                 value={s.visitorsLast24h}
-                hint={`${s.visitors} unique visitors all-time`}
+                hint={`${s.visitors} unique all-time`}
                 href="/admin/visitors"
                 icon={ICONS.visitors}
-                tone=""
                 iconTone="bg-indigo-50 text-indigo-700"
+              />
+              <StatCard
+                label="Chats · 24h"
+                value={s.chatsLast24h}
+                hint={`${s.chats} transcripts total`}
+                href="/admin/chats"
+                icon={ICONS.chats}
+                iconTone="bg-violet-50 text-violet-700"
               />
             </>
           )}
         </div>
       </section>
 
-      {/* Needs attention + system panel */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section className="lg:col-span-2" aria-label="Needs attention">
-          <div className="mb-3 flex items-center gap-3">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Needs attention
-            </h2>
-            <div className="h-px flex-grow bg-slate-200" />
-          </div>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            {loading || !s ? (
-              <div className="space-y-2 p-4">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {attention.map((item) => (
-                  <li key={item.label}>
-                    <Link
-                      href={item.href}
-                      className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400"
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-sm font-bold text-slate-800">{item.label}</span>
-                        <span className="block truncate text-xs font-medium text-slate-400">
-                          {item.description}
-                        </span>
-                      </span>
-                      <span
-                        className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-black tabular-nums ${
-                          item.count > 0
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'bg-slate-50 text-slate-400'
-                        }`}
-                      >
-                        {item.count}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+      {/* 2 · Recent orders (2/3) + Needs attention (1/3).
+          CHANGE: 2026-11-14 — activity moved up from the bottom of a four-screen
+          page; the System-health card is gone (the header chip already shows
+          service, database and version). */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <RecentPanel
+            title="Recent orders"
+            href="/admin/payments"
+            hrefLabel="Open payments"
+            loading={loading}
+            empty={!loading && (s?.recentOrders?.length ?? 0) === 0}
+            emptyText="No orders yet."
+          >
+            {(s?.recentOrders ?? []).map((o) => (
+              <li
+                key={o.orderId || `${o.createdAt}-${o.amountPaise}`}
+                className="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-slate-800">
+                    {o.customerName || 'Guest customer'}
+                  </span>
+                  <span className="block truncate font-mono text-[11px] text-slate-400">
+                    {o.orderId || '—'} · {formatRelative(o.createdAt)}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-black tabular-nums text-slate-800">
+                    {formatMoney(o.amountPaise)}
+                  </span>
+                  <span
+                    className={`rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
+                      STATUS_STYLES[o.status] || 'bg-slate-50 text-slate-500 border-slate-100'
+                    }`}
+                  >
+                    {o.status}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </RecentPanel>
+        </div>
+
+        <section
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+          aria-label="Needs attention"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5">
+            <h2 className="text-sm font-black text-slate-800">Needs attention</h2>
+            {attention.length > 0 && (
+              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-black tabular-nums text-amber-700">
+                {attention.length}
+              </span>
             )}
           </div>
-        </section>
-
-        <section aria-label="System health">
-          <div className="mb-3 flex items-center gap-3">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-              System health
-            </h2>
-            <div className="h-px flex-grow bg-slate-200" />
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <dl className="space-y-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <dt className="font-medium text-slate-500">Service</dt>
-                <dd className="font-bold text-slate-800">
-                  {loading ? 'Checking…' : healthy ? 'Operational' : 'Error'}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="font-medium text-slate-500">Database</dt>
-                <dd className={`font-bold ${dbConnected ? 'text-teal-700' : 'text-rose-600'}`}>
-                  {loading ? '…' : dbConnected ? 'Connected' : 'Disconnected'}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="font-medium text-slate-500">Version</dt>
-                <dd className="font-bold text-slate-800">{health?.version || '—'}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <dt className="font-medium text-slate-500">Last checked</dt>
-                <dd className="text-xs font-semibold text-slate-600">
-                  {formatDateTime(health?.timestamp)}
-                </dd>
-              </div>
-            </dl>
-            <Link
-              href="/admin/settings"
-              className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-slate-600 transition-colors hover:border-teal-200 hover:text-teal-700"
-            >
-              Open settings
-            </Link>
-          </div>
+          {loading || !s ? (
+            <div className="space-y-2 p-3">
+              <Skeleton className="h-7 w-full" />
+              <Skeleton className="h-7 w-full" />
+            </div>
+          ) : attention.length === 0 ? (
+            <p className="px-3 py-4 text-xs font-semibold text-slate-500">
+              Nothing needs attention right now.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {attention.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400"
+                  >
+                    <span className="min-w-0 truncate text-xs font-bold text-slate-700">
+                      {item.label}
+                    </span>
+                    <span className="shrink-0 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-black tabular-nums text-amber-700">
+                      {item.count}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
-      {/* Lifetime totals, grouped */}
-      <div className="space-y-5">
-        <MetricGroup
-          title="Leads & Inquiries"
-          items={[
-            {
-              label: 'Contact Submissions',
-              value: loading ? '—' : s?.submissions ?? 0,
-              hint: `${s?.submissionsLast24h ?? 0} in last 24h`,
-              href: '/admin/submissions',
-              icon: ICONS.submissions,
-            },
-            {
-              label: 'Bug & Issue Reports',
-              value: loading ? '—' : s?.problemReports ?? 0,
-              hint: `${s?.problemReportsLast24h ?? 0} in last 24h`,
-              href: '/admin/problem-reports',
-              icon: ICONS.bugs,
-            },
-            {
-              label: 'TSS Renewals',
-              value: loading ? '—' : s?.tssRenewals ?? 0,
-              hint: `${s?.tssPending ?? 0} pending`,
-              href: '/admin/tss-renewals',
-              icon: ICONS.renewals,
-            },
-            {
-              label: 'Job Applications',
-              value: loading ? '—' : s?.applications ?? 0,
-              hint: `${s?.applicationsLast24h ?? 0} in last 24h`,
-              href: '/admin/careers',
-              icon: ICONS.careers,
-            },
-            {
-              label: 'Candidate Accounts',
-              value: loading ? '—' : s?.accounts ?? 0,
-              hint: 'Career sign-ups',
-              href: '/admin/careers',
-              icon: ICONS.accounts,
-            },
-          ]}
-        />
-
-        <MetricGroup
-          title="Engagement"
-          items={[
-            {
-              label: 'Unique Visitors',
-              value: loading ? '—' : s?.visitors ?? 0,
-              hint: 'Humans, all-time',
-              href: '/admin/visitors',
-              icon: ICONS.visitors,
-            },
-            {
-              label: 'Visitors (24h)',
-              value: loading ? '—' : s?.visitorsLast24h ?? 0,
-              hint: 'Active in last 24h',
-              href: '/admin/visitors',
-              icon: ICONS.visitors,
-            },
-            {
-              label: 'Chat Transcripts',
-              value: loading ? '—' : s?.chats ?? 0,
-              hint: `${s?.chatsLast24h ?? 0} active in last 24h`,
-              href: '/admin/chats',
-              icon: ICONS.chats,
-            },
-            {
-              label: 'Form Drafts',
-              value: loading ? '—' : s?.drafts ?? 0,
-              hint: `${s?.draftsLast24h ?? 0} active in last 24h`,
-              href: '/admin/drafts',
-              icon: ICONS.drafts,
-            },
-            {
-              label: 'FAQ Entries',
-              value: loading ? '—' : s?.faq ?? 0,
-              hint: 'On the public site',
-              href: '/admin/faq',
-              icon: ICONS.submissions,
-            },
-          ]}
-        />
-
-        <MetricGroup
-          title="Commerce & Careers"
-          items={[
-            {
-              label: 'Orders',
-              value: loading ? '—' : s?.orders ?? 0,
-              hint: `${s?.ordersToday ?? 0} placed today`,
-              href: '/admin/payments',
-              icon: ICONS.orders,
-            },
-            {
-              label: 'Orders Today',
-              value: loading ? '—' : s?.ordersToday ?? 0,
-              hint: 'Since midnight',
-              href: '/admin/payments',
-              icon: ICONS.clock,
-            },
-            {
-              label: 'Awaiting Payment',
-              value: loading ? '—' : s?.ordersPending ?? 0,
-              hint: 'Status “created”',
-              href: '/admin/payments',
-              icon: ICONS.orders,
-            },
-            {
-              label: 'Paid Orders',
-              value: loading ? '—' : s?.revenueOrders ?? 0,
-              hint: 'Verified or fulfilled',
-              href: '/admin/payments/summary',
-              icon: ICONS.revenue,
-            },
-            {
-              label: 'Revenue Collected',
-              value: loading ? '—' : formatMoney(s?.revenuePaise ?? 0),
-              hint: 'Verified + fulfilled',
-              href: '/admin/payments/summary',
-              icon: ICONS.revenue,
-            },
-          ]}
-        />
-      </div>
-
-      {/* Recent activity */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <RecentPanel
-          title="Recent orders"
-          href="/admin/payments"
-          hrefLabel="Open payments"
-          loading={loading}
-          empty={!loading && (s?.recentOrders?.length ?? 0) === 0}
-          emptyText="No orders yet."
-        >
-          {(s?.recentOrders ?? []).map((o) => (
-            <li
-              key={o.orderId || `${o.createdAt}-${o.amountPaise}`}
-              className="flex items-center justify-between gap-3 px-4 py-3"
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-bold text-slate-800">
-                  {o.customerName || 'Guest customer'}
+      {/* 3 · Recent leads (2/3) + the compact long-tail totals (1/3).
+          CHANGE: 2026-11-14 — this replaces the three 5-card "lifetime totals" groups
+          (15 tiles, several repeating the headline KPIs). The Quick-links footer is
+          gone as well — the sidebar is the navigation. */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <RecentPanel
+            title="Recent leads"
+            href="/admin/submissions"
+            hrefLabel="Open submissions"
+            loading={loading}
+            empty={!loading && (s?.recentLeads?.length ?? 0) === 0}
+            emptyText="No form submissions yet."
+          >
+            {(s?.recentLeads ?? []).map((lead, i) => (
+              <li
+                key={`${lead.email}-${lead.createdAt}-${i}`}
+                className="flex items-center justify-between gap-3 px-3 py-2.5"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-slate-800">
+                    {lead.name || lead.email || 'Anonymous lead'}
+                  </span>
+                  <span className="block truncate text-[11px] text-slate-400">
+                    {[lead.formType, lead.service].filter(Boolean).join(' · ') || 'General enquiry'}
+                  </span>
                 </span>
-                <span className="block truncate font-mono text-[11px] text-slate-400">
-                  {o.orderId || '—'} · {formatRelative(o.createdAt)}
+                <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                  {formatRelative(lead.createdAt)}
                 </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                <span className="text-sm font-black tabular-nums text-slate-800">
-                  {formatMoney(o.amountPaise)}
-                </span>
-                <span
-                  className={`rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
-                    STATUS_STYLES[o.status] || 'bg-slate-50 text-slate-500 border-slate-100'
-                  }`}
-                >
-                  {o.status}
-                </span>
-              </span>
-            </li>
-          ))}
-        </RecentPanel>
-
-        <RecentPanel
-          title="Recent leads"
-          href="/admin/submissions"
-          hrefLabel="Open submissions"
-          loading={loading}
-          empty={!loading && (s?.recentLeads?.length ?? 0) === 0}
-          emptyText="No form submissions yet."
-        >
-          {(s?.recentLeads ?? []).map((lead, i) => (
-            <li
-              key={`${lead.email}-${lead.createdAt}-${i}`}
-              className="flex items-center justify-between gap-3 px-4 py-3"
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-bold text-slate-800">
-                  {lead.name || lead.email || 'Anonymous lead'}
-                </span>
-                <span className="block truncate text-[11px] text-slate-400">
-                  {[lead.formType, lead.service].filter(Boolean).join(' · ') || 'General enquiry'}
-                </span>
-              </span>
-              <span className="shrink-0 text-[11px] font-semibold text-slate-400">
-                {formatRelative(lead.createdAt)}
-              </span>
-            </li>
-          ))}
-        </RecentPanel>
-      </div>
-
-      <footer className="rounded-2xl border border-slate-200 bg-white p-4">
-        <h2 className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-          Quick links
-        </h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            { href: '/admin/payments', label: 'Payments' },
-            { href: '/admin/visitors', label: 'Visitors' },
-            { href: '/admin/chats', label: 'Chats' },
-            { href: '/admin/drafts', label: 'Drafts' },
-            { href: '/admin/email-config', label: 'Email config' },
-            { href: '/admin/settings', label: 'Settings' },
-          ].map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition-colors hover:border-teal-200 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-1"
-            >
-              {link.label}
-            </Link>
-          ))}
+              </li>
+            ))}
+          </RecentPanel>
         </div>
-      </footer>
+
+        <section
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+          aria-label="All totals"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5">
+            <h2 className="text-sm font-black text-slate-800">All totals</h2>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Lifetime
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-x-4 p-1.5 sm:grid-cols-2">
+            {totals.map((item) => (
+              <MiniStat key={item.label} item={item} />
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
