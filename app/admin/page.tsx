@@ -366,20 +366,17 @@ export default function AdminDashboard() {
             </span>
           </div>
 
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={fetchData}
-              disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#006569] px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-teal-900/10 transition-all hover:bg-[#045A57] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Icon path={ICONS.refresh} className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing…' : 'Refresh'}
-            </button>
-            {/* CHANGE: 2026-11-14 — owner asked for the "last updated" tag ON the refresh
-                control, so the timestamp is now a caption under the button instead of its
-                own line under the header. Kept outside the <button> so it is not clickable
-                text and screen readers get it as plain status text. */}
-            <span className="pr-1 text-[10px] font-semibold text-slate-500">
+          {/* CHANGE: 2026-11-15 — owner: "last refresh time takes refresh button out of
+              line". The caption used to be stacked UNDER the button, so that column grew
+              taller than the system chip and `items-center` pushed the button up off the
+              chip's centre line. It is now INLINE beside the button: the row wrapper keeps
+              the timestamp glued to the button (it can never wrap away from it) and adds no
+              height, so everything on the header line shares one centre. The caption sits
+              BEFORE the button so a changing timestamp grows leftwards and never nudges the
+              button. Button padding py-2.5 → py-2 so its height (32 px) matches the chip's.
+              The caption stays outside the <button> — not clickable, plain status text. */}
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-[10px] font-semibold text-slate-500">
               {lastUpdated
                 ? `Updated ${lastUpdated.toLocaleTimeString('en-IN', {
                     hour: '2-digit',
@@ -387,6 +384,14 @@ export default function AdminDashboard() {
                   })}`
                 : 'Not updated yet'}
             </span>
+            <button
+              onClick={fetchData}
+              disabled={refreshing}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#006569] px-4 py-2 text-xs font-bold text-white shadow-sm shadow-teal-900/10 transition-all hover:bg-[#045A57] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Icon path={ICONS.refresh} className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
         </div>
       </header>
