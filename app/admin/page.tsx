@@ -42,6 +42,14 @@ import { toDateMs } from '@/lib/date-coerce';
 //     careers" card at the bottom, next to recent leads.
 //   * TSS pending, bug reports 24h and leads 24h go amber when non-zero.
 //   * The last-updated timestamp is a caption under the Refresh button.
+//
+// CHANGE: 2026-11-16 — owner: "admin panel is too complex, reduce unwanted things and
+// remove transaction logs as they are test". The whole Payments module (/admin/payments
+// ledger + summary, its API route and sidebar entry) is gone because every order in it
+// is a demo/test order. This dashboard therefore drops every payment surface too: the
+// "Recent orders" panel, the "Orders awaiting payment" attention row, the four payment
+// totals and their now-dead types/helpers. Careers (applications + candidate accounts)
+// stays as a compact card at the bottom — no other screen was removed.
 
 type HealthStatus = {
   status: string;
@@ -49,14 +57,6 @@ type HealthStatus = {
   timestamp: string;
   version: string;
   mongodb_error?: string;
-};
-
-type RecentOrder = {
-  orderId: string;
-  customerName: string;
-  amountPaise: number;
-  status: string;
-  createdAt: string | null;
 };
 
 type RecentLead = {
@@ -73,7 +73,6 @@ type AdminStats = {
   tssRenewals: number;
   applications: number;
   visitors: number;
-  orders: number;
   accounts: number;
   chats: number;
   drafts: number;
@@ -84,26 +83,10 @@ type AdminStats = {
   tssPending: number;
   applicationsLast24h: number;
   visitorsLast24h: number;
-  ordersToday: number;
-  ordersPending: number;
-  revenuePaise: number;
-  revenueOrders: number;
   chatsLast24h: number;
   draftsLast24h: number;
-  recentOrders: RecentOrder[];
   recentLeads: RecentLead[];
 };
-
-const inr = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 0,
-});
-
-function formatMoney(paise: number | undefined): string {
-  if (typeof paise !== 'number' || !Number.isFinite(paise)) return '—';
-  return inr.format(paise / 100);
-}
 
 function formatRelative(value: string | null | undefined): string {
   const ms = toDateMs(value);
@@ -117,13 +100,6 @@ function formatRelative(value: string | null | undefined): string {
   const days = Math.round(hours / 24);
   return `${days}d ago`;
 }
-
-const STATUS_STYLES: Record<string, string> = {
-  verified: 'bg-teal-50 text-teal-700 border-teal-100',
-  fulfilled: 'bg-teal-50 text-teal-700 border-teal-100',
-  refunded: 'bg-rose-50 text-rose-600 border-rose-100',
-  created: 'bg-amber-50 text-amber-700 border-amber-100',
-};
 
 // CHANGE: 2026-11-14 (follow-up) — the KPI tiles no longer carry icons, so only the two
 // glyphs still in use remain: the Refresh spinner and the error-banner warning.
@@ -159,8 +135,9 @@ type StatTileProps = {
 // CHANGE: 2026-11-14 (follow-up) — the headline tiles are now MINI tiles: one value and
 // one label, no icon, no hint. Fourteen of them fit in two rows on a desktop, so every
 // non-financial stat is above the fold instead of half of them being below it. Payment
-// and careers numbers were moved out of this row entirely (owner's ask) and live in the
-// "Payments & careers" card at the bottom.
+// and careers numbers were moved out of this row entirely (owner's ask); payments were
+// then removed with the whole Payments module on 2026-11-16, leaving only the small
+// Careers card at the bottom.
 function StatTile({ label, value, href, warn }: StatTileProps) {
   return (
     <Link
@@ -267,11 +244,6 @@ export default function AdminDashboard() {
         href: '/admin/tss-renewals',
       },
       {
-        label: 'Orders awaiting payment',
-        count: s?.ordersPending ?? 0,
-        href: '/admin/payments',
-      },
-      {
         label: 'Bug reports · last 24h',
         count: s?.problemReportsLast24h ?? 0,
         href: '/admin/problem-reports',
@@ -284,34 +256,14 @@ export default function AdminDashboard() {
     ] as { label: string; count: number; href: string }[]
   ).filter((item) => item.count > 0);
 
-  // CHANGE: 2026-11-14 (follow-up) — the top grid now carries every non-financial stat,
-  // so this card keeps only what the owner asked to keep OFF the headline row:
-  // payments and careers. Same compact label · value · hint rows.
+  // CHANGE: 2026-11-16 — the four payment rows were removed with the whole Payments
+  // module (all orders in it were test orders). Careers stays: it is a real screen and
+  // the owner asked to keep every other admin screen. Same compact label · value · hint
+  // rows, now in a full-width card at the bottom of the page.
   const ready = !loading && !!s;
   const num = (n: number | undefined) => (ready ? n ?? 0 : '—');
 
-  const totals: MiniItem[] = [
-    {
-      label: 'Orders (total)',
-      value: num(s?.orders),
-      hint: ready ? `${s?.ordersToday ?? 0} today` : undefined,
-      href: '/admin/payments',
-    },
-    {
-      label: 'Awaiting payment',
-      value: num(s?.ordersPending),
-      href: '/admin/payments',
-    },
-    {
-      label: 'Paid orders',
-      value: num(s?.revenueOrders),
-      href: '/admin/payments/summary',
-    },
-    {
-      label: 'Revenue collected',
-      value: ready ? formatMoney(s?.revenuePaise ?? 0) : '—',
-      href: '/admin/payments/summary',
-    },
+  const careers: MiniItem[] = [
     {
       label: 'Job applications',
       value: num(s?.applications),
@@ -424,7 +376,8 @@ export default function AdminDashboard() {
       {/* 1 · Every non-financial stat, as mini tiles — two rows on a desktop, so nothing
           important needs a scroll. CHANGE: 2026-11-14 (follow-up) — owner: "i dontt want
           payment or candidate on top, else ensure all stats are smaller on top without
-          scroll on desktop". Payments + careers moved to the "Payments & careers" card below. */}
+          scroll on desktop". Payments + careers moved below; on 2026-11-16 the payments
+          half went away with the whole module, leaving the small Careers card. */}
       <section aria-label="All site statistics">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
           {loading || !s ? (
@@ -478,8 +431,10 @@ export default function AdminDashboard() {
           CHANGE: 2026-11-14 — activity moved up from the bottom of a four-screen
           page; the System-health card is gone (the header chip already shows
           service, database and version).
-          CHANGE: 2026-11-14 (follow-up) — leads come before orders: the owner does
-          not want payment content high on the page, so orders now sit last. */}
+          CHANGE: 2026-11-14 (follow-up) — leads come before activity: the owner does
+          not want payment content high on the page. CHANGE: 2026-11-16 — the orders
+          panel below was removed with the Payments module, so leads are now the only
+          recent-activity feed on the page. */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <RecentPanel
@@ -554,68 +509,26 @@ export default function AdminDashboard() {
         </section>
       </div>
 
-      {/* 3 · Recent orders (2/3) + payments & careers (1/3) — the numbers the owner asked
-          to keep OFF the headline row, deliberately LAST on the page.
-          CHANGE: 2026-11-14 — this replaces the three 5-card "lifetime totals" groups
-          (15 tiles, several repeating the headline KPIs). The Quick-links footer is
-          gone as well — the sidebar is the navigation. */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <RecentPanel
-            title="Recent orders"
-            href="/admin/payments"
-            hrefLabel="Open payments"
-            loading={loading}
-            empty={!loading && (s?.recentOrders?.length ?? 0) === 0}
-            emptyText="No orders yet."
-          >
-            {(s?.recentOrders ?? []).map((o) => (
-              <li
-                key={o.orderId || `${o.createdAt}-${o.amountPaise}`}
-                className="flex items-center justify-between gap-3 px-3 py-2.5"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold text-slate-800">
-                    {o.customerName || 'Guest customer'}
-                  </span>
-                  <span className="block truncate font-mono text-[11px] text-slate-400">
-                    {o.orderId || '—'} · {formatRelative(o.createdAt)}
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="text-sm font-black tabular-nums text-slate-800">
-                    {formatMoney(o.amountPaise)}
-                  </span>
-                  <span
-                    className={`rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
-                      STATUS_STYLES[o.status] || 'bg-slate-50 text-slate-500 border-slate-100'
-                    }`}
-                  >
-                    {o.status}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </RecentPanel>
+      {/* 3 · Careers — deliberately LAST on the page.
+          CHANGE: 2026-11-16 — the "Recent orders" panel and the four payment totals went
+          away with the whole Payments module (demo/test orders only). The careers card
+          stays at full width; every other admin screen is kept. */}
+      <section
+        className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
+        aria-label="Careers"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5">
+          <h2 className="text-sm font-black text-slate-800">Careers</h2>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Below the stats
+          </span>
         </div>
-
-        <section
-          className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
-          aria-label="Payments and careers"
-        >
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2.5">
-            <h2 className="text-sm font-black text-slate-800">Payments &amp; careers</h2>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Below the stats
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-x-4 p-1.5 sm:grid-cols-2">
-            {totals.map((item) => (
-              <MiniStat key={item.label} item={item} />
-            ))}
-          </div>
-        </section>
-      </div>
+        <div className="grid grid-cols-1 gap-x-4 p-1.5 sm:grid-cols-2">
+          {careers.map((item) => (
+            <MiniStat key={item.label} item={item} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

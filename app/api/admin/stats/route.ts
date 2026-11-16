@@ -11,6 +11,13 @@ import { VISITOR_KEY_EXPR, HUMAN_MATCH } from '@/lib/visitor-groups';
 // lifetime totals, so the dashboard could not say what needs attention *today*.
 // All changes are additive — existing keys (visitors, visitorsLast24h, orders, …)
 // keep their exact meaning, so scripts/api-test.mjs and visitors-admin-test.mjs stay green.
+//
+// CHANGE: 2026-11-16 — the whole Payments module was removed (every order in it was a
+// demo/test order), and the dashboard no longer renders orders or revenue. The orders
+// collection handle and the six order/revenue queries are gone: fewer Atlas round-trips
+// and no dead fields. Every remaining key keeps its exact meaning — the tests only assert
+// a 200 and `visitorsLast24h`, so they are unaffected. `lib/order-status.ts` and
+// `updateOrderStatus()` stay: they are order-audit helpers, not payments UI.
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +28,6 @@ export async function GET() {
     const now = Date.now();
     const last24h = new Date(now - DAY_MS);
     const last7d = new Date(now - 7 * DAY_MS);
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
 
     const [
       submissionsCol,
@@ -30,7 +35,6 @@ export async function GET() {
       tssRenewalsCol,
       applicationsCol,
       visitorsCol,
-      ordersCol,
       usersCol,
       chatsCol,
       draftsCol,
@@ -41,7 +45,6 @@ export async function GET() {
       getCollection('tss_renewals'),
       getCollection('job_applications'),
       getCollection('visitors'),
-      getCollection('orders'),
       getCollection('careers_users'),
       getCollection('chat_logs'),
       getCollection('drafts'),
@@ -60,17 +63,12 @@ export async function GET() {
       applicationsLast24h,
       uniqueAgg,
       last24hAgg,
-      orders,
-      ordersToday,
-      ordersPending,
-      revenueAgg,
       accounts,
       chats,
       chatsLast24h,
       drafts,
       draftsLast24h,
       faqDoc,
-      recentOrdersRaw,
       recentLeadsRaw,
     ] = await Promise.all([
       submissionsCol.countDocuments(),
@@ -96,37 +94,12 @@ export async function GET() {
           { $count: 'n' },
         ])
         .toArray(),
-      ordersCol.countDocuments(),
-      ordersCol.countDocuments({ createdAt: { $gte: startOfToday } }),
-      ordersCol.countDocuments({ status: 'created' }),
-      ordersCol
-        .aggregate([
-          { $match: { status: { $in: ['verified', 'fulfilled'] } } },
-          { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 } } },
-        ])
-        .toArray(),
       usersCol.countDocuments(),
       chatsCol.countDocuments(),
       chatsCol.countDocuments({ lastActiveAt: { $gte: last24h } }),
       draftsCol.countDocuments(),
       draftsCol.countDocuments({ lastActiveAt: { $gte: last24h } }),
       siteContentCol.findOne({ section: 'home_faq' }),
-      ordersCol
-        .find(
-          {},
-          {
-            projection: {
-              orderId: 1,
-              amountPaise: 1,
-              status: 1,
-              createdAt: 1,
-              'customer.name': 1,
-            },
-          }
-        )
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .toArray(),
       submissionsCol
         .find(
           {},
@@ -139,8 +112,6 @@ export async function GET() {
 
     const faqCount =
       faqDoc && Array.isArray((faqDoc as any).content) ? (faqDoc as any).content.length : 0;
-    const revenue = revenueAgg[0] ?? { total: 0, count: 0 };
-
     return NextResponse.json({
       // Lifetime counts (kept for compatibility).
       submissions,
@@ -148,7 +119,6 @@ export async function GET() {
       tssRenewals,
       applications,
       visitors: uniqueAgg[0]?.n ?? 0,
-      orders,
       accounts,
       chats,
       drafts,
@@ -161,21 +131,10 @@ export async function GET() {
       tssPending,
       applicationsLast24h,
       visitorsLast24h: last24hAgg[0]?.n ?? 0,
-      ordersToday,
-      ordersPending,
-      revenuePaise: Number(revenue.total) || 0,
-      revenueOrders: Number(revenue.count) || 0,
       chatsLast24h,
       draftsLast24h,
 
       // Recent activity feeds (new). Dates serialise to ISO through NextResponse.json.
-      recentOrders: recentOrdersRaw.map((o: any) => ({
-        orderId: o.orderId || '',
-        customerName: o.customer?.name || '',
-        amountPaise: Number(o.amountPaise) || 0,
-        status: o.status || 'created',
-        createdAt: o.createdAt || null,
-      })),
       recentLeads: recentLeadsRaw.map((s: any) => ({
         name: s.name || '',
         email: s.email || '',
